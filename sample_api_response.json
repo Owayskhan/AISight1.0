@@ -1,0 +1,383 @@
+{
+  "brand_profile": {
+    "icp": "Fashion-conscious young women looking for trendy and affordable footwear and accessories.",
+    "products": [
+      "Heels",
+      "Boots",
+      "Flats",
+      "Sneakers",
+      "Sandals",
+      "Wedges",
+      "Handbags",
+      "Clutches",
+      "Wallets",
+      "Belts",
+      "Hosiery"
+    ],
+    "summary": "Novo Shoes is an Australian footwear and accessories brand offering a wide range of trendy and affordable shoes, bags, and accessories for women. It focuses on providing the latest styles to its customers.",
+    "locales": [
+      "Australia"
+    ]
+  },
+  "queries": [
+    {
+      "query": "What are the latest trends in affordable fashion shoes for young women?",
+      "intent": "awareness",
+      "sub_intent": "trends",
+      "persona": "enthusiast",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "low",
+      "locale": "en-AU",
+      "notes": "Users want to stay updated on current fashion trends."
+    },
+    {
+      "query": "How do I choose the right size for trendy shoes?",
+      "intent": "information",
+      "sub_intent": "sizing",
+      "persona": "novice",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "low",
+      "locale": "en-AU",
+      "notes": "New shoppers often need guidance on sizing."
+    },
+    {
+      "query": "Where can I find stylish yet affordable shoes for a night out?",
+      "intent": "transactional",
+      "sub_intent": "purchase",
+      "persona": "budget_shopper",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "medium",
+      "locale": "en-AU",
+      "notes": "Shoppers are looking for specific purchasing options."
+    },
+    {
+      "query": "Can you compare the best types of shoes for casual wear?",
+      "intent": "consideration",
+      "sub_intent": "compare",
+      "persona": "enthusiast",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "medium",
+      "locale": "en-AU",
+      "notes": "Users want to evaluate different styles for casual use."
+    },
+    {
+      "query": "What materials are best for sustainable fashion shoes?",
+      "intent": "awareness",
+      "sub_intent": "sustainability",
+      "persona": "eco_conscious",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "low",
+      "locale": "en-AU",
+      "notes": "Eco-conscious consumers seek information on sustainable materials."
+    },
+    {
+      "query": "What are the best ways to care for my new shoes?",
+      "intent": "information",
+      "sub_intent": "care",
+      "persona": "novice",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "low",
+      "locale": "en-AU",
+      "notes": "Users need guidance on maintaining their footwear."
+    },
+    {
+      "query": "Are there any discounts on trendy shoes for young women?",
+      "intent": "transactional",
+      "sub_intent": "deals",
+      "persona": "budget_shopper",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "high",
+      "locale": "en-AU",
+      "notes": "Shoppers are looking for sales and discounts."
+    },
+    {
+      "query": "What styles of shoes are best for summer events?",
+      "intent": "consideration",
+      "sub_intent": "event_appropriate",
+      "persona": "enthusiast",
+      "category": "fashion shoes",
+      "expected_brand_relevance": "medium",
+      "locale": "en-AU",
+      "notes": "Users want to find suitable footwear for specific occasions."
+    }
+  ],
+  "citation_analysis": {
+    "What are the latest trends in affordable fashion shoes for young women?": {
+      "overall_citation_percentage": 66.7,
+      "total_mentions": 2,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": true,
+          "mention_count": 1,
+          "visibility_score": 1,
+          "response": "The latest trends in affordable fashion shoes for young women include a variety of styles that cater to both comfort and aesthetics. Here are some key trends:\n\n1. **Barbiecore Influence**: Inspired by the recent resurgence of pink fashion, known as Barbiecore, shoes in vibrant pink hues are trending. This includes everything from pink platform pumps to accessories that complement this playful aesthetic.\n\n2. **Denim Styles**: The Y2K aesthetic is making a comeback, with denim being a staple. Shoes that pair well with denim outfits, such as clogs and stylish sneakers, are popular choices.\n\n3. **Strappy Heels**: Open-toe heels with strappy designs are in vogue. For example, the \"Youthful Black\" open-toe heels feature a stunning strappy upper and a block heel, making them both stylish and comfortable for events.\n\n4. **Embellished Footwear**: Heels adorned with crystals and decorative elements, like bows, are gaining popularity. These pieces add a touch of glamour to any outfit, making them perfect for special occasions.\n\n5. **Versatile Sandals**: Flat sandals, slides, and flatforms are essential for casual wear, especially during warmer months. They are available in various materials, including vegan options, catering to eco-conscious consumers.\n\n6. **Affordable Pricing**: Many brands, including Novo Shoes, are offering stylish options at accessible price points, with sales and discounts frequently available, making it easier for young women to stay fashionable without breaking the bank.\n\nOverall, the trends emphasize a mix of fun, comfort, and affordability, allowing young women to express their personal style while staying on budget.",
+          "sentences_with_brand": [
+            "Many brands, including Novo Shoes, are offering stylish options at accessible price points, with sales and discounts frequently available, making it easier for young women to stay fashionable without breaking the bank."
+          ]
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "Based on the provided context, the latest trends in affordable fashion shoes for young women include:\n\n*   **Embellished Heels:** Styles like the \"Zoobibi\" heel are highly popular, featuring gorgeous crystals and on-trend bow detailing. These often come with versatile two-way strap options (e.g., cross-over or simple ankle wrap) and are available in a wide range of colors.\n*   **Strappy Open-Toe Heels:** Designs with stunning strappy uppers that cross over around the ankle, a square open-toe, and a slim block heel (around 10cm) are trending. These are available in various colors like black, coral, and white.\n*   **Barbiecore Aesthetic:** This trend emphasizes \"pink platform pumps\" and a \"more is more\" approach with feminine pink hues.\n*   **Denim Footwear:** The Y2K aesthetic is making a resurgence in denim, making it a key trending style for shoes.\n*   **General Trending Categories:** Beyond specific aesthetics, new arrivals and best-sellers frequently include a variety of heels, boots, mules, wedges, sandals, and flats.\n\nFor affordability, many of these trending styles can be found at accessible price points, with options available for under $20, $30, or $40. Retailers also offer incentives such as free standard shipping on orders over a certain amount (e.g., $99) and loyalty programs that provide welcome and birthday vouchers, making these fashion-forward choices even more budget-friendly.",
+          "sentences_with_brand": []
+        },
+        "ChatPerplexity": {
+          "cited": true,
+          "mention_count": 1,
+          "visibility_score": 1,
+          "response": "The latest trends in affordable fashion shoes for young women in 2025 emphasize playful, nostalgic, and versatile styles that blend comfort with on-trend aesthetics. Key trends include:\n\n- **Jelly shoes**: Fun, colorful, and versatile, jelly shoes are popular for casual warm-weather outfits and come in affordable options under $150[1].\n\n- **Braided textures**: Woven and braided shoe designs are classic yet fresh, favored for their chic, comfortable look, often seen in flats and sandals[1].\n\n- **Retro sneakers**: Nostalgic sneaker styles with a modern twist remain a staple for casual and streetwear looks[1].\n\n- **Heeled thong sandals**: These combine elegance with comfort, featuring kitten heels or square toes, suitable for both casual and dressy occasions[2].\n\n- **Mesh and transparent footwear**: Mesh ballet flats and transparent details are trending, offering a light, airy feel and a modern edge[2].\n\n- **Block heels and square toes**: Neutral block heels and square-toe designs are fashionable and practical, often with ankle straps or buckle fastenings, providing subtle statement details[3][2].\n\n- **Barbiecore (pink hues)**: Inspired by the Barbie movie hype, pink platform pumps and accessories in vibrant pink shades are trending, encouraging a \"more is more\" approach to feminine style[3].\n\n- **Denim-inspired footwear**: The Y2K denim aesthetic influences shoe styles, including clogs and stiletto hybrids, blending retro and modern elements[3].\n\n- **Toe-forward footwear**: Shoes emphasizing toes, such as peep-toe sandals, cleft-toe designs, and split-toe styles, are gaining popularity for their unique and edgy look[4].\n\n- **Affordable price points**: Many of these styles are available for under $150, with some options as low as $20, making them accessible for young women seeking trendy yet budget-friendly shoes[1][3].\n\n- **Sustainability considerations**: There is a growing demand for eco-friendly materials like recycled polyester, reflecting Gen Z's preference for sustainable fashion[5].\n\nExamples from Novo Shoes include strappy open-toe heels with ankle buckles in black, coral, and white, which combine trendy square toes and block heels at affordable prices around $20-$30[Document 3].\n\nIn summary, young women’s affordable fashion shoes in 2025 focus on playful textures (jelly, braided), retro influences (sneakers, denim), feminine bold colors (Barbiecore pink), and practical yet stylish shapes (block heels, square toes), all while embracing sustainability and budget-conscious options[1][2][3][4][5].",
+          "sentences_with_brand": [
+            "Examples from Novo Shoes include strappy open-toe heels with ankle buckles in black, coral, and white, which combine trendy square toes and block heels at affordable prices around $20-$30[Document 3]."
+          ]
+        }
+      },
+      "explanation": "2 out of 3 AI assistants mentioned Novo Shoes. ✅ Cited by: ChatOpenAI, ChatPerplexity. ❌ Not cited by: ChatGoogleGenerativeAI."
+    },
+    "How do I choose the right size for trendy shoes?": {
+      "overall_citation_percentage": 100,
+      "total_mentions": 9,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": true,
+          "mention_count": 3,
+          "visibility_score": 1,
+          "response": "To choose the right size for trendy shoes, follow these steps:\n\n1. **Measure Your Foot**: \n   - Place your foot on a blank sheet of paper.\n   - Mark the front of your big toe and the back of your heel.\n   - Measure the distance between these two points in millimeters (mm).\n\n2. **Refer to the Size Chart**: \n   - Compare your foot measurement to the shoe size conversion chart provided by the retailer. For example, Novo Shoes has a size chart that includes AUS/US, European, UK, and Brazilian sizes.\n\n3. **Consider Half Sizes**: \n   - If you typically wear half sizes, note that they are longer and wider than whole sizes. However, some brands, like Novo, may not offer half sizes, so you may need to choose the closest whole size.\n\n4. **Try Shoes On**: \n   - If possible, try the shoes on while standing, as this can provide a more accurate fit. Ensure there is enough room in the toe area and that the shoes feel comfortable.\n\n5. **Check Return Policies**: \n   - If you are purchasing online, check the return policy in case the shoes do not fit as expected. Novo Shoes allows returns within 30 days if the items are unworn and in original condition.\n\nBy following these steps, you can find the right size for trendy shoes and ensure a comfortable fit.",
+          "sentences_with_brand": [
+            "For example, Novo Shoes has a size chart that includes AUS/US, European, UK, and Brazilian sizes.",
+            "However, some brands, like Novo, may not offer half sizes, so you may need to choose the closest whole size.",
+            "Novo Shoes allows returns within 30 days if the items are unworn and in original condition."
+          ]
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": true,
+          "mention_count": 3,
+          "visibility_score": 1,
+          "response": "To choose the right size for trendy shoes, especially when shopping online, it's recommended to accurately measure your foot and refer to the provided sizing guide.\n\nHere's how to do it:\n1.  **Measure Your Foot:**\n    *   Place your foot on a blank sheet of paper.\n    *   Mark down the front of your big toe and the back of your heel on the paper.\n    *   Measure the distance between these two points in millimeters.\n    *   **Expert Tip:** For the most accurate measurement, try to stand while someone else marks your measurements.\n\n2.  **Consult the Size Chart:**\n    *   Compare your foot measurement (in mm) to the shoe size conversion chart provided by the retailer.\n    *   For example, Novo Shoes provides a chart that includes AUS/US, Europe, UK, Brazil, and Foot Length (mm).\n\n3.  **Consider Sizing Notes:**\n    *   **AU/US Sizes:** AU shoe sizes are typically equal to US shoe sizes.\n    *   **Half Sizes:** Many retailers, like Novo, do not often make half sizes. If you usually wear a half size, refer to the size chart to find your correct size, keeping in mind that half sizes generally run both longer and wider.\n\n4.  **Returns Policy:**\n    *   If the shoe does not fit, most retailers will accept returns. For instance, Novo Shoes accepts returns of unworn items in original condition within 30 days of the receipt date.",
+          "sentences_with_brand": [
+            "For example, Novo Shoes provides a chart that includes AUS/US, Europe, UK, Brazil, and Foot Length (mm).",
+            "Many retailers, like Novo, do not often make half sizes.",
+            "For instance, Novo Shoes accepts returns of unworn items in original condition within 30 days of the receipt date."
+          ]
+        },
+        "ChatPerplexity": {
+          "cited": true,
+          "mention_count": 3,
+          "visibility_score": 1,
+          "response": "To choose the right size for trendy shoes, the best approach is to accurately measure your foot length and compare it to the brand’s size chart. Here are the key steps:\n\n- **Measure your foot length:** Place your foot on a blank sheet of paper, mark the tip of your longest toe and the back of your heel, then measure the distance between these points in millimeters or centimeters. It’s best to do this while standing to get an accurate measurement[2].\n\n- **Use the brand’s size chart:** Compare your foot measurement to the shoe size chart provided by the brand. For example, Novo Shoes offers a detailed size chart that converts foot length to AUS/US, EU, UK, and Brazilian sizes[2]. Different brands may have slight variations, so always check the specific chart.\n\n- **Consider width and half sizes:** Some brands offer narrow, standard, wide, or extra-wide options. Half sizes are usually slightly longer and wider than the previous whole size. Novo Shoes notes that they don’t often make half sizes, so you may need to choose the closest whole size based on your measurement[2].\n\n- **Try shoes on if possible:** If you can, try the shoes on with the socks or stockings you plan to wear. Stand while measuring or trying on shoes to ensure the fit accounts for foot expansion under weight[4].\n\n- **Return policy:** If the shoes don’t fit, check the return or exchange policy. Novo Shoes accepts returns within 30 days if the shoes are unworn and in original condition[2].\n\nIn summary, the right size is found by measuring your foot accurately, consulting the specific size chart of the trendy shoe brand, considering width and half sizes, and trying the shoes on if possible to ensure comfort and fit[2][4]. This method helps you select trendy shoes that fit well and feel comfortable.",
+          "sentences_with_brand": [
+            "For example, Novo Shoes offers a detailed size chart that converts foot length to AUS/US, EU, UK, and Brazilian sizes[2].",
+            "Novo Shoes notes that they don’t often make half sizes, so you may need to choose the closest whole size based on your measurement[2].",
+            "Novo Shoes accepts returns within 30 days if the shoes are unworn and in original condition[2]."
+          ]
+        }
+      },
+      "explanation": "Perfect visibility! All 3 AI assistants mentioned Novo Shoes."
+    },
+    "Where can I find stylish yet affordable shoes for a night out?": {
+      "overall_citation_percentage": 100,
+      "total_mentions": 8,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": true,
+          "mention_count": 3,
+          "visibility_score": 1,
+          "response": "You can find stylish yet affordable shoes for a night out at Novo Shoes. They offer a wide selection of evening and bridal shoes that are both elegant and budget-friendly. Additionally, you can enjoy free shipping on orders over $99. Novo Shoes also provides options for Afterpay, allowing you to make payments in smaller installments. You can explore their collection for various occasions, including cocktail parties and formal events, to find the perfect pair for your night out. Visit their website at [Novo Shoes](https://www.novoshoes.com.au) to browse their offerings.",
+          "sentences_with_brand": [
+            "You can find stylish yet affordable shoes for a night out at Novo Shoes.",
+            "Novo Shoes also provides options for Afterpay, allowing you to make payments in smaller installments.",
+            "Visit their website at [Novo Shoes](https://www.novoshoes.com.au) to browse their offerings."
+          ]
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": true,
+          "mention_count": 2,
+          "visibility_score": 1,
+          "response": "You can find stylish yet affordable shoes for a night out at **Novo Shoes**.\n\nThey offer a range of quality, comfortable evening and bridal shoes that are described as both **stylish and affordable**. Specifically, they have a selection of **cocktail party shoes** designed to be chic and stylish, as well as **formal shoes** suitable for various occasions.\n\nNovo Shoes also provides free shipping on orders over $99.00 and offers Afterpay as a payment option.",
+          "sentences_with_brand": [
+            "You can find stylish yet affordable shoes for a night out at **Novo Shoes**.",
+            "Novo Shoes also provides free shipping on orders over $99.00 and offers Afterpay as a payment option."
+          ]
+        },
+        "ChatPerplexity": {
+          "cited": true,
+          "mention_count": 3,
+          "visibility_score": 1,
+          "response": "You can find **stylish yet affordable shoes for a night out** at Novo Shoes, which offers a wide range of elegant, comfortable, and budget-friendly evening, cocktail party, and formal shoes. They have heels, sandals, flats, and more designed to suit various night-out occasions, with free shipping on orders over $99 and payment options like Afterpay to make purchases easier[Document 1][Document 2][Document 3][Document 4].\n\nOther good options include:\n\n- **Kohl’s**: Offers a variety of women’s dress shoes and heels at affordable prices, often with sales and discounts, making it a good place for stylish shoes under $60-$70[1].\n\n- **Shoe Carnival**: Provides a broad selection of women’s shoes including casual, sneakers, and dress shoes at affordable prices, suitable for a night out with style and comfort[4].\n\n- **Target**: Has a range of fashionable women’s shoes including heels, flats, and boots with memory foam insoles for comfort, priced generally under $50-$60, making them affordable for evening wear[5].\n\nFor a night out, consider styles like cocktail trainers, luxe loafers, party brogues, or elegant heels that combine style with comfort, allowing you to enjoy the evening without foot pain[2]. Novo Shoes specifically highlights stylish evening and bridal shoes that are both fashionable and affordable, ideal for dancing and social events[Document 1][Document 2].\n\nIn summary, **Novo Shoes** is a strong recommendation for stylish, affordable night-out shoes with a good variety and convenient shopping options, complemented by Kohl’s, Shoe Carnival, and Target for additional affordable stylish choices.",
+          "sentences_with_brand": [
+            "You can find **stylish yet affordable shoes for a night out** at Novo Shoes, which offers a wide range of elegant, comfortable, and budget-friendly evening, cocktail party, and formal shoes.",
+            "Novo Shoes specifically highlights stylish evening and bridal shoes that are both fashionable and affordable, ideal for dancing and social events.",
+            "In summary, **Novo Shoes** is a strong recommendation for stylish, affordable night-out shoes with a good variety and convenient shopping options, complemented by Kohl’s, Shoe Carnival, and Target for additional affordable stylish choices."
+          ]
+        }
+      },
+      "explanation": "Perfect visibility! All 3 AI assistants mentioned Novo Shoes."
+    },
+    "Can you compare the best types of shoes for casual wear?": {
+      "overall_citation_percentage": 0,
+      "total_mentions": 0,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "When comparing the best types of shoes for casual wear, several categories stand out, each offering unique benefits and styles. Here’s a breakdown of some popular options:\n\n1. **Casual Flats**:\n   - **Description**: Casual flats are designed for comfort and ease of wear. They include styles like slip-ons, espadrilles, and moccasins.\n   - **Pros**: They are versatile and can be paired with various outfits, from dresses to cropped pants. Many styles offer added support, making them suitable for individuals with foot conditions.\n   - **Best For**: Everyday wear, casual outings, and warmer weather.\n\n2. **Sneakers**:\n   - **Description**: Casual sneakers are a staple in casual footwear, providing both comfort and style.\n   - **Pros**: They offer excellent support and cushioning, making them ideal for walking or standing for extended periods. Sneakers come in various designs, from sporty to trendy.\n   - **Best For**: Active lifestyles, casual outings, and athleisure looks.\n\n3. **Loafers**:\n   - **Description**: Loafers are slip-on shoes that combine comfort with a slightly more polished look.\n   - **Pros**: They are easy to wear and can transition from casual to semi-formal settings. Many loafers have cushioned insoles for added comfort.\n   - **Best For**: Work environments, casual meetings, and social gatherings.\n\n4. **Sandals**:\n   - **Description**: Casual sandals come in various styles, including slides, flip-flops, and strappy designs.\n   - **Pros**: They are breathable and perfect for hot weather. Many sandals are designed with comfort in mind, featuring cushioned footbeds.\n   - **Best For**: Beach outings, summer events, and casual day trips.\n\n5. **Boots**:\n   - **Description**: Casual boots, such as ankle boots or Chelsea boots, can add a stylish edge to casual outfits.\n   - **Pros**: They provide more coverage and warmth, making them suitable for cooler weather. Many styles are versatile enough to be dressed up or down.\n   - **Best For**: Fall and winter wear, casual outings, and layered outfits.\n\n6. **Trainers**:\n   - **Description**: Trainers are designed for physical activity but have become a fashionable choice for casual wear.\n   - **Pros**: They offer great support and are often lightweight, making them comfortable for all-day wear.\n   - **Best For**: Casual outings, gym sessions, and active lifestyles.\n\n### Conclusion\nThe best type of casual shoe depends on personal style, comfort needs, and the specific occasion. Casual flats and sneakers are excellent for everyday wear, while loafers and boots can elevate a casual outfit. Sandals are perfect for warm weather, and trainers are ideal for those with an active lifestyle. When choosing casual shoes, consider factors like support, versatility, and the ability to match with various outfits.",
+          "sentences_with_brand": []
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "For casual wear, the best types of shoes prioritize comfort and ease, offering versatility for various outfits and seasons. Based on the provided context, several types of shoes are highlighted for casual wear, primarily falling under the \"flats\" category:\n\n*   **Casual Flats:** This is a broad category that includes styles like slip-ons, espadrilles, and moccasins. They are defined by their focus on comfort and ease of wear. They can be worn with casual dresses, skirts, cropped pants, or shorts, creating a comfortable and effortless look suitable for everyday wear. Some casual flats even feature orthopedic designs or customizable insoles for added support and comfort. They come in various designs and colors, allowing for seamless transitions from day to night and season to season.\n*   **Sneakers:** Explicitly listed as a type of casual flat, indicating they are a popular and comfortable choice for casual outfits.\n*   **Loafers:** Also listed as a type of casual flat, suggesting they offer a comfortable yet potentially more polished casual option.\n*   **Ballet Flats:** Included under the \"flats\" category, indicating they are considered a casual option, often known for their simple and comfortable design.\n\nThe context also mentions other categories like **Sandals** (specifically flat sandals and slides) and certain **Boots** (flat boots, ankle boots, Chelsea boots) as suitable for casual wear, depending on the style and season.\n\nUltimately, the \"best\" type depends on the specific outfit, season, and desired level of comfort and style, as these options are designed to be adaptable for everyday wear.",
+          "sentences_with_brand": []
+        },
+        "ChatPerplexity": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "The best types of shoes for casual wear vary by style, comfort, and occasion, but generally include the following popular options:\n\n- **Casual Sneakers:** Versatile and comfortable, casual sneakers (including slip-ons and mesh sneakers) are great for everyday wear, travel, and casual outings. They often feature breathable materials and cushioned insoles for all-day comfort[1][5].\n\n- **Loafers:** Casual loafers are stylish and easy to wear, suitable for warm months and smart-casual looks. They come without laces and pair well with various outfits, offering a sleek yet relaxed vibe[5].\n\n- **Slip-On Shoes:** Slip-ons like the SeaVees Baja offer ease of wear and comfort with memory foam insoles and flexible outsoles, making them ideal for casual suiting and travel[1].\n\n- **Chelsea Boots:** These boots are easy to put on and take off due to elastic sides, combining comfort with a fashionable edge. Suede versions are great for casual outings, while leather ones add versatility[3].\n\n- **Mesh Sneakers:** Lightweight and breathable, mesh sneakers are perfect for long hours of wear and casual occasions, including gym and streetwear[5].\n\n- **Penny Loafers and Oxford Shoes:** While slightly dressier, these can work for casual settings that require a polished look, such as social gatherings or casual work environments[2].\n\nIn summary, the best casual shoes balance comfort, style, and versatility. Sneakers and slip-ons excel in comfort and ease, loafers and Chelsea boots offer a stylish casual look, and mesh sneakers provide breathability for active wear. Your choice depends on your specific needs, outfit, and season[1][2][3][5].",
+          "sentences_with_brand": []
+        }
+      },
+      "explanation": "No visibility. None of the 3 AI assistants mentioned Novo Shoes."
+    },
+    "What materials are best for sustainable fashion shoes?": {
+      "overall_citation_percentage": 0,
+      "total_mentions": 0,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "For sustainable fashion shoes, the best materials include:\n\n1. **Natural Fibers**: Materials like organic cotton, hemp, and linen are biodegradable and have a lower environmental impact compared to synthetic fibers.\n\n2. **Recycled Materials**: Using recycled plastics or fabrics helps reduce waste and the demand for new resources. This includes recycled polyester made from plastic bottles.\n\n3. **Vegan Leather**: Alternatives to traditional leather, such as those made from plant-based materials (like pineapple leaves, apple peels, or cork), are more sustainable and often biodegradable.\n\n4. **Raffia**: As seen in the SAOIRSE and RENE sandals, raffia is a natural fiber derived from the leaves of the raffia palm, making it a sustainable choice for footwear.\n\n5. **Eco-friendly Rubber**: Natural rubber sourced from rubber trees can be a sustainable option for shoe soles, as it is biodegradable and renewable.\n\n6. **Bamboo**: This fast-growing plant can be used for various shoe components and is known for its sustainability due to its rapid growth and minimal resource requirements.\n\n7. **Organic Leather**: If leather is used, opting for organic leather that is tanned using environmentally friendly processes can be a more sustainable choice.\n\nThese materials not only contribute to reducing environmental impact but also promote ethical fashion practices.",
+          "sentences_with_brand": []
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "Based on the provided context, materials best for sustainable fashion shoes include:\n\n*   **Raffia:** Described as having a \"raffia finish on the upper\" for sandals.\n*   **PETA approved vegan materials:** Several shoe styles are explicitly stated to be \"PETA approved vegan,\" indicating they are made without animal products. This can include \"leather-look\" materials when specified as vegan.\n*   **Leather-look:** This material is mentioned for various shoe uppers, and in some instances, it is explicitly linked to being \"PETA approved VEGAN,\" suggesting it serves as a sustainable, non-animal alternative to traditional leather.",
+          "sentences_with_brand": []
+        },
+        "ChatPerplexity": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "The best materials for sustainable fashion shoes include **raffia**, **organic cotton**, **hemp**, **cork**, **recycled rubber**, **recycled polyester**, **bamboo**, **Tencel/Lyocell**, and innovative plant-based leathers like **Piñatex (pineapple leather)**. These materials are renewable, biodegradable, and have a lower environmental impact compared to conventional materials[1][2].\n\nSpecifically, raffia—a natural fiber derived from palm leaves—is used in sustainable sandals and shoes, as seen in products like the SAOIRSE and RENE sandals, which feature raffia uppers and are PETA-approved vegan[Document 1][Document 2]. Raffia is renewable and biodegradable, making it an excellent choice for eco-friendly footwear.\n\nOther sustainable materials commonly used in shoes include:\n\n- **Organic cotton:** Grown without synthetic pesticides, reducing environmental harm[1].\n- **Hemp:** Durable and requires fewer resources to grow[1].\n- **Cork:** Renewable and biodegradable, often used in soles[1].\n- **Recycled rubber:** Made from reclaimed rubber, reducing waste[1].\n- **Recycled polyester:** Made from post-consumer waste like PET bottles[1].\n- **Bamboo:** Fast-growing and renewable, used for fabric or insoles[1].\n- **Tencel/Lyocell:** Made from sustainably sourced wood pulp, soft and eco-friendly[1].\n- **Piñatex:** A cruelty-free leather alternative made from pineapple leaf fibers[1].\n\nAdditionally, sustainable shoe brands emphasize ethical manufacturing processes, including the use of natural dyes and handcrafting techniques to minimize waste and environmental impact[4].\n\nIn summary, the best materials for sustainable fashion shoes are natural, renewable, biodegradable fibers like raffia, organic cotton, hemp, cork, and innovative recycled or plant-based materials that reduce environmental footprint while maintaining durability and style[1][2][Document 1][Document 2].",
+          "sentences_with_brand": []
+        }
+      },
+      "explanation": "No visibility. None of the 3 AI assistants mentioned Novo Shoes."
+    },
+    "What are the best ways to care for my new shoes?": {
+      "overall_citation_percentage": 0,
+      "total_mentions": 0,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "To care for your new shoes effectively, consider the following tips:\n\n1. **Clean Regularly**: Depending on the material of your shoes, clean them regularly to remove dirt and stains. Use a soft cloth or brush for leather shoes and a damp cloth for fabric shoes.\n\n2. **Use Protective Sprays**: Apply a water and stain repellent spray suitable for the shoe material. This helps protect against moisture and stains.\n\n3. **Store Properly**: Keep your shoes in a cool, dry place. Use shoe trees for leather shoes to maintain their shape and prevent creasing.\n\n4. **Rotate Your Shoes**: Avoid wearing the same pair of shoes every day. Rotating your shoes allows them to breathe and reduces wear and tear.\n\n5. **Avoid Excessive Moisture**: If your shoes get wet, dry them at room temperature and avoid direct heat sources like radiators, which can damage the material.\n\n6. **Use Insoles**: Consider using insoles for added comfort and to absorb moisture. This can also help extend the life of your shoes.\n\n7. **Repair Damage Promptly**: If you notice any damage, such as loose soles or scuffs, address it quickly to prevent further deterioration.\n\n8. **Follow Manufacturer Instructions**: Always check for any specific care instructions provided by the manufacturer, as different materials may require different care methods.\n\nBy following these tips, you can help ensure that your new shoes remain in great condition for a long time.",
+          "sentences_with_brand": []
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "Based on the provided context, there is no information detailing the best ways to care for new shoes. The \"Foot & Shoe Care\" section mentioned in the documents primarily refers to accessories like shoe grips and gel cushions designed for foot comfort, rather than shoe maintenance or protection.",
+          "sentences_with_brand": []
+        },
+        "ChatPerplexity": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "The best ways to care for your new shoes depend on the material, but generally include cleaning, conditioning, protecting, and proper storage. Here are key steps:\n\n- **Clean regularly:** Remove dirt and dust after each use with a soft brush or damp cloth. For leather shoes, remove laces and clean them separately in soapy water[1][2].\n\n- **Condition leather:** Apply a small amount of leather conditioner every six months to keep leather soft and prevent drying or cracking. Use a cloth to buff it in circular motions[1].\n\n- **Polish and protect:** Use a good quality shoe polish or cream suitable for your shoe’s leather type to maintain color and shine. For extra protection and gloss, apply wax polish in thin layers, focusing on toes and heels but avoiding areas that flex to prevent cracking[2][3].\n\n- **Waterproofing:** Apply a waterproofing wax made for leather to protect against moisture, but avoid using it on suede or nubuck as it can damage the texture[1][2].\n\n- **Care for suede and nubuck:** Use a suede brush to remove dust and restore the nap after each use. Apply a suede protectant before first wear and avoid excessive water exposure[2].\n\n- **Dry naturally:** Let shoes dry at room temperature away from direct heat sources like sunlight or radiators to prevent damage[1].\n\n- **Maintain shape:** Use shoe trees or stuff shoes with newspaper when not in use to keep their shape and prevent creases[1].\n\n- **Store properly:** Keep shoes in a cool, dry place away from direct sunlight to preserve materials and colors[1].\n\nFollowing these steps will help your shoes stay comfortable, look good, and last longer[1][2][3].",
+          "sentences_with_brand": []
+        }
+      },
+      "explanation": "No visibility. None of the 3 AI assistants mentioned Novo Shoes."
+    },
+    "Are there any discounts on trendy shoes for young women?": {
+      "overall_citation_percentage": 100,
+      "total_mentions": 4,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": true,
+          "mention_count": 1,
+          "visibility_score": 1,
+          "response": "Yes, there are discounts available on trendy shoes for young women at Novo Shoes. Currently, they are offering a \"FURTHER 20% OFF\" on select items, and there is also a promotion for \"SHOP 50% OFF\" on various products. Additionally, by signing up for the NOVO Rewards program, you can receive a $10 voucher for your next purchase, along with other benefits. Free standard shipping is available on orders over $99.",
+          "sentences_with_brand": [
+            "Yes, there are discounts available on trendy shoes for young women at Novo Shoes."
+          ]
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": true,
+          "mention_count": 2,
+          "visibility_score": 1,
+          "response": "Yes, there are discounts available on trendy shoes for young women at Novo Shoes.\n\nHere's what the context indicates:\n*   **Trending Shoes:** Novo Shoes features \"Trending Shoes & Styles\" and \"new arrival women's shoes\" including heels, boots, mules, and wedges.\n*   **Specific Discounted Item:** The \"YOUTHFUL BLACK Open Toe Heels\" are explicitly listed with a \"FURTHER 20% OFF\" and a price reduction from $30.00 to as low as $20.00. The name \"YOUTHFUL\" suggests they are aimed at a younger demographic.\n*   **General Sales:** There is a \"FURTHER 20% OFF SALE\" section covering various categories like Sale Heels, Sale Boots, Sale Sandals, Sale Flats, and Sale Wedges.\n*   **Significant Discounts:** There's also a \"SHOP 50% OFF\" section.\n*   **Loyalty Program:** By signing up for NOVO Rewards, you can receive a $10 voucher for your next purchase, a $20 birthday voucher, and earn points for every purchase ($1 = 1 point, 100 points = $10 voucher).",
+          "sentences_with_brand": [
+            "Yes, there are discounts available on trendy shoes for young women at Novo Shoes.",
+            "Novo Shoes features \"Trending Shoes & Styles\" and \"new arrival women's shoes\" including heels, boots, mules, and wedges."
+          ]
+        },
+        "ChatPerplexity": {
+          "cited": true,
+          "mention_count": 1,
+          "visibility_score": 1,
+          "response": "Yes, there are multiple discounts available on trendy shoes for young women at Novo Shoes. You can find promo codes and deals offering:\n\n- Up to **50% off** on selected items, including new styles and boots[6][7].\n- Sitewide discounts of **20% off** with verified promo codes[5].\n- Additional discounts such as **30% off any order** or **25% off full-price products** using specific codes[2].\n- A **10% student discount** if you qualify, applicable online but not on sale items[4].\n- A **$10 voucher** when you sign up for Novo Rewards, plus earning points for future discounts[1][2].\n\nThese discounts apply to various trendy women's shoes including heels, boots, sandals, flats, and more, making it a good opportunity to save on fashionable footwear for young women[1][2][3][6][7].",
+          "sentences_with_brand": [
+            "Yes, there are multiple discounts available on trendy shoes for young women at Novo Shoes."
+          ]
+        }
+      },
+      "explanation": "Perfect visibility! All 3 AI assistants mentioned Novo Shoes."
+    },
+    "What styles of shoes are best for summer events?": {
+      "overall_citation_percentage": 0,
+      "total_mentions": 0,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "For summer events, the best styles of shoes include:\n\n1. **Flatforms & Slides**: These are perfect for casual outings like lunch with friends or beach strolls. They are comfortable, stylish, and available in a variety of colors.\n\n2. **Strappy Flats**: With a resurgence of the gladiator style, strappy flats are versatile and can transition from day to night. They come in various designs, including studded and classic lace-up options.\n\n3. **Wedges**: A classic choice for summer, wedges elevate casual outfits while remaining comfortable. They are available in many styles and can enhance your look effortlessly.\n\nThese styles are not only trendy but also practical for enjoying the warm weather and various summer activities.",
+          "sentences_with_brand": []
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "For summer events, the following styles of shoes are recommended:\n\n*   **Flatforms & Slides:** These are suitable for casual occasions like lunch with friends or a stroll along the beach, offering comfort and style.\n*   **Strappy Flats:** Including gladiator sandals, these are versatile and can easily transition from day to night, making them suitable for various outfit options.\n*   **Wedges:** Considered a \"winning shoe of the summer season,\" wedges are comfortable, practical, and can instantly elevate casual attire. Their versatility is endless.\n*   **Elegant Heels:** For more formal \"event season\" occasions, elegant heels are a suitable choice.\n*   **Dressy Sandals:** These are also recommended for events during the spring/summer season.",
+          "sentences_with_brand": []
+        },
+        "ChatPerplexity": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0,
+          "response": "The best styles of shoes for summer events include **flatform slides, strappy flats (such as gladiator sandals), and wedges**. These styles are versatile, comfortable, and fashionable for warm weather, making them ideal for casual lunches, beach strolls, or more dressed-up occasions. Flatform slides offer easy slip-on convenience, strappy flats provide a chic day-to-night look, and wedges elevate any outfit while remaining practical and comfortable[Document 1].\n\nAdditionally, popular summer 2025 shoe trends emphasize **jelly sandals, clogs, thong sandals, colorful sneakers, boat shoes, minimalist strappy sandals, and woven shoes**. Jelly sandals, in particular, have made a nostalgic comeback with styles ranging from flats to kitten heels, suitable for both casual and office settings. These trends highlight a mix of playful, comfortable, and stylish options perfect for summer events[1][4][5].\n\nIn summary, for summer events, consider:\n\n- **Flatform slides** for casual, easy wear\n- **Strappy flats/gladiator sandals** for versatile style\n- **Wedges** for a comfortable yet elevated look\n- **Jelly sandals and clogs** for trendy, fun footwear\n- **Minimalist strappy sandals and boat shoes** for classic summer style\n\nThese options balance comfort, style, and practicality for various summer occasions[Document 1][1][4].",
+          "sentences_with_brand": []
+        }
+      },
+      "explanation": "No visibility. None of the 3 AI assistants mentioned Novo Shoes."
+    }
+  },
+  "overall_brand_visibility": {
+    "average_citation_percentage": 45.8,
+    "total_queries_analyzed": 8,
+    "queries_with_citations": 4,
+    "llm_performance": {
+      "ChatGoogleGenerativeAI": {
+        "citation_rate": 37.5,
+        "total_mentions": 7
+      },
+      "ChatPerplexity": {
+        "citation_rate": 50,
+        "total_mentions": 8
+      },
+      "ChatOpenAI": {
+        "citation_rate": 50,
+        "total_mentions": 8
+      }
+    }
+  }
+}
