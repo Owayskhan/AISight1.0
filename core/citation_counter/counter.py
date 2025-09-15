@@ -7,7 +7,7 @@ from core.prompts.citations_count import citations_count_prompt
 from core.models.main import CitationsCount, LLMCitationResult, QueryVisibilityAnalysis, BrandVisibilityMetrics
 from typing import Dict, List
 
-def analyze_citations_count(llm, response, brand_name):
+async def analyze_citations_count(llm, response, brand_name):
     citations_count_parser = PydanticOutputParser(pydantic_object=CitationsCount)
 
     citations_count_prompt_template = ChatPromptTemplate.from_template(
@@ -18,12 +18,12 @@ def analyze_citations_count(llm, response, brand_name):
 
     citations_count_chain = citations_count_prompt_template | llm.with_structured_output(CitationsCount)
 
-    count = citations_count_chain.invoke({
+    count = await citations_count_chain.ainvoke({
         "response": response
     })
     return count
 
-def analyze_query_visibility(llm_responses: Dict[str, any], brand_name: str, citation_llm) -> QueryVisibilityAnalysis:
+async def analyze_query_visibility(llm_responses: Dict[str, any], brand_name: str, citation_llm) -> QueryVisibilityAnalysis:
     """
     Analyze visibility percentage for a single query across all LLMs
     
@@ -35,14 +35,26 @@ def analyze_query_visibility(llm_responses: Dict[str, any], brand_name: str, cit
     Returns:
         QueryVisibilityAnalysis with visibility percentage and breakdown
     """
+    import asyncio
+    
     llm_breakdown = {}
     total_mentions = 0
     cited_llms = 0
     
+    # Create async tasks for all citation analyses
+    citation_tasks = []
+    llm_names = []
+    
     for llm_name, response in llm_responses.items():
-        # Analyze citations for this LLM using existing function
-        citation_result = analyze_citations_count(citation_llm, response.content, brand_name)
-        
+        task = analyze_citations_count(citation_llm, response.content, brand_name)
+        citation_tasks.append(task)
+        llm_names.append(llm_name)
+    
+    # Run all citation analyses concurrently
+    citation_results = await asyncio.gather(*citation_tasks)
+    
+    # Process results
+    for llm_name, citation_result, response in zip(llm_names, citation_results, llm_responses.values()):
         # Create binary citation result
         cited = citation_result.count > 0
         if cited:

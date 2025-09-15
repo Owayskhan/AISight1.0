@@ -101,7 +101,7 @@ async def analyze_citation_count(request: CitationCountRequest):
         if request.url_type == "product":
             logger.info("🛍️ Processing single product URL...")
             try:
-                product_docs = load_single_product_document(
+                product_docs = await load_single_product_document(
                     product_url=request.brand_url,
                     openai_api_key=request.api_keys.openai_api_key,
                     product_description=request.product_description,
@@ -130,7 +130,7 @@ async def analyze_citation_count(request: CitationCountRequest):
 
                 # Create vector store with the single product document
                 logger.info("🔍 Creating vector store for product...")
-                vector_store = create_vector_store(product_docs, request.api_keys.openai_api_key)
+                vector_store = await create_vector_store(product_docs, request.api_keys.openai_api_key)
                 retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 4})
                 content_preloaded = True
                 logger.info("✅ Vector store created for product")
@@ -166,7 +166,7 @@ async def analyze_citation_count(request: CitationCountRequest):
                 logger.info(f"✅ Loaded {len(sitemap_docs)} URLs from sitemap")
                 
                 logger.info("🔍 Creating retriever from sitemap...")
-                retriever = get_retriever(sitemap_url, request.api_keys.openai_api_key)
+                retriever = await get_retriever(sitemap_url, request.api_keys.openai_api_key)
                 content_preloaded = False
                 logger.info("✅ Retriever created successfully")
                 
@@ -267,21 +267,23 @@ async def analyze_citation_count(request: CitationCountRequest):
         
         # Step 5: Generate answers and analyze visibility
         logger.info("🤖 Starting LLM answer generation and citation analysis...")
-        citation_results = {}
+        import asyncio
         
         # Initialize LLM for citation analysis (using OpenAI for consistency)
         citation_llm = ChatOpenAI(api_key=request.api_keys.openai_api_key, model="gpt-4o-mini", temperature=0)
         logger.info("✅ Citation analysis LLM initialized")
         
         total_queries = len(retrieved_queries)
-        for idx, item in enumerate(retrieved_queries, 1):
+        logger.info(f"🚀 Processing {total_queries} queries with concurrent optimization...")
+        
+        async def process_single_query(idx, item):
             query = item["query"]
             context = item["context"]
             
             logger.info(f"🔄 Processing query {idx}/{total_queries}: '{query.query[:60]}...'")
             
             try:
-                # Generate answers from all LLMs
+                # Generate answers from all LLMs (already concurrent within this function)
                 logger.info(f"   🤖 Generating answers from 3 LLMs...")
                 llm_responses = await run_query_answering_chain(
                     query=query.query,
@@ -295,9 +297,9 @@ async def analyze_citation_count(request: CitationCountRequest):
                 )
                 logger.info(f"   ✅ Got responses from {len(llm_responses)} LLMs")
                 
-                # Analyze visibility for this query across all LLMs
+                # Analyze visibility for this query across all LLMs (already concurrent within this function)
                 logger.info(f"   📊 Analyzing brand visibility...")
-                visibility_analysis = analyze_query_visibility(
+                visibility_analysis = await analyze_query_visibility(
                     llm_responses=llm_responses,
                     brand_name=request.brand_name,
                     citation_llm=citation_llm
@@ -306,11 +308,29 @@ async def analyze_citation_count(request: CitationCountRequest):
                 citation_percentage = visibility_analysis.overall_citation_percentage
                 logger.info(f"   ✅ Visibility: {citation_percentage}% ({visibility_analysis.explanation})")
                 
-                citation_results[query.query] = visibility_analysis.model_dump()
+                return query.query, visibility_analysis.model_dump()
                 
             except Exception as e:
                 logger.error(f"   ❌ Failed processing query {idx}: {str(e)}")
                 raise HTTPException(status_code=500, detail=f"Query processing error for query {idx}: {str(e)}")
+        
+        # Process queries with controlled concurrency (batches of 3 to respect API limits)
+        citation_results = {}
+        batch_size = 3  # Process 3 queries at a time to balance speed vs API limits
+        
+        for i in range(0, len(retrieved_queries), batch_size):
+            batch = retrieved_queries[i:i + batch_size]
+            logger.info(f"📦 Processing batch {i//batch_size + 1}/{(len(retrieved_queries) + batch_size - 1)//batch_size}")
+            
+            # Create tasks for current batch
+            tasks = [process_single_query(i + j + 1, item) for j, item in enumerate(batch)]
+            
+            # Process batch concurrently
+            batch_results = await asyncio.gather(*tasks)
+            
+            # Update results
+            for query_text, analysis in batch_results:
+                citation_results[query_text] = analysis
         
         # Calculate overall brand visibility metrics
         logger.info("📈 Calculating overall brand visibility metrics...")

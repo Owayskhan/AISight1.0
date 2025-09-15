@@ -70,7 +70,7 @@ def load_sitemap_documents(sitemap_url: str):
     
     return sitemap_docs
 
-def extract_product_info_llm(page_content: str, openai_api_key: str) -> ProductInfo:
+async def extract_product_info_llm(page_content: str, openai_api_key: str) -> ProductInfo:
     """
     Extract product information using LLM with structured output
     """
@@ -89,7 +89,7 @@ def extract_product_info_llm(page_content: str, openai_api_key: str) -> ProductI
     """
     
     try:
-        result = llm.with_structured_output(ProductInfo).invoke(prompt)
+        result = await llm.with_structured_output(ProductInfo).ainvoke(prompt)
         return result
     except Exception as e:
         # Fallback if extraction fails
@@ -98,9 +98,9 @@ def extract_product_info_llm(page_content: str, openai_api_key: str) -> ProductI
             product_type="product"
         )
 
-def load_single_product_document(product_url: str, openai_api_key: str, 
-                                product_description: Optional[str] = None, 
-                                product_type: Optional[str] = None) -> List[Document]:
+async def load_single_product_document(product_url: str, openai_api_key: str, 
+                                      product_description: Optional[str] = None, 
+                                      product_type: Optional[str] = None) -> List[Document]:
     """Load a single product page and chunk it using markdown text splitter based on headers"""
     loader = WebBaseLoader(product_url)
     docs = loader.load()
@@ -116,7 +116,7 @@ def load_single_product_document(product_url: str, openai_api_key: str,
             product_type=product_type
         )
     else:
-        product_info = extract_product_info_llm(html_content, openai_api_key)
+        product_info = await extract_product_info_llm(html_content, openai_api_key)
     
     # Convert HTML to markdown for better structure recognition
     h = html2text.HTML2Text()

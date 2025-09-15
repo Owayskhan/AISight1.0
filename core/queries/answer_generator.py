@@ -27,17 +27,25 @@ async def run_query_answering_chain(query, context, brand_name,api_keys):
 
     perplexity_llm = ChatPerplexity(temperature=0, pplx_api_key=api_keys["PERPLEXITY_API_KEY"], model="sonar")
 
+    import asyncio
+    
     llms = [openai_llm, gemini_llm, perplexity_llm]
 
-    llm_responses = {}
-    for llm in llms:
+    # Create async tasks for all LLM calls to run concurrently
+    async def call_llm(llm):
         brand_rag_prompt = ChatPromptTemplate.from_template(brand_rag_system_prompt).partial(brand_name=brand_name)
         brand_rag_chain = brand_rag_prompt | llm
-
+        
         response = await brand_rag_chain.ainvoke({
             "query": query,
             "context": context
         })
-        llm_responses[llm.__class__.__name__] = response
-
+        return llm.__class__.__name__, response
+    
+    # Run all LLM calls concurrently
+    tasks = [call_llm(llm) for llm in llms]
+    results = await asyncio.gather(*tasks)
+    
+    # Convert results to dictionary
+    llm_responses = dict(results)
     return llm_responses

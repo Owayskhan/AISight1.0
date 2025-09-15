@@ -9,10 +9,12 @@ from core.website_crawler.crawler import load_sitemap_documents
 
 
 
-def create_vector_store(sitemap_docs,api_key):
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small",api_key=api_key)
+async def create_vector_store(sitemap_docs, api_key):
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=api_key)
 
-    index = faiss.IndexFlatL2(len(embeddings.embed_query("hello world")))
+    # Use async embedding to get dimensions
+    sample_embedding = await embeddings.aembed_query("hello world")
+    index = faiss.IndexFlatL2(len(sample_embedding))
 
     sitemap_vector_store = FAISS(
         embedding_function=embeddings,
@@ -25,12 +27,12 @@ def create_vector_store(sitemap_docs,api_key):
 
     uuids = [str(uuid4()) for _ in range(len(sitemap_docs))]
 
-    sitemap_vector_store.add_documents(documents=sitemap_docs, ids=uuids)
+    # Use async add_documents
+    await sitemap_vector_store.aadd_documents(documents=sitemap_docs, ids=uuids)
 
     return sitemap_vector_store
 
-def get_retriever(sitemap_url, api_key, k=4):
-
+async def get_retriever(sitemap_url, api_key, k=4):
     sitemap_docs = load_sitemap_documents(sitemap_url)
-    sitemap_vector_store = create_vector_store(sitemap_docs, api_key)
-    return sitemap_vector_store.as_retriever(search_type="similarity", search_kwargs={"k":k})
+    sitemap_vector_store = await create_vector_store(sitemap_docs, api_key)
+    return sitemap_vector_store.as_retriever(search_type="similarity", search_kwargs={"k": k})
