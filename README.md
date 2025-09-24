@@ -249,8 +249,6 @@ conversions-digital/
 
 ### Getting Help
 - 📖 Check the [troubleshooting guide](docs/SETUP_GUIDE.md#troubleshooting)
-- 🐛 [Report issues](https://github.com/your-org/conversions-digital/issues)
-- 💬 Join our [community Discord](https://discord.gg/your-server)
 
 ## 📄 License
 
