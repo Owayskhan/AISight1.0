@@ -171,23 +171,6 @@ response = requests.post('http://localhost:8000/analyze', json={
 }
 ```
 
-## 💡 Use Cases
-
-### Marketing Teams
-- **Competitive Analysis**: Compare brand visibility vs competitors
-- **Content Strategy**: Identify gaps in AI-findable content
-- **SEO for AI**: Optimize for AI-powered search results
-
-### Product Teams  
-- **Product Positioning**: Understand how products are perceived by AI
-- **Feature Visibility**: Check if key features are mentioned in AI responses
-- **Market Analysis**: Analyze brand presence across different customer segments
-
-### Growth Teams
-- **Channel Strategy**: Measure effectiveness of AI-optimized content
-- **Brand Awareness**: Track brand mention frequency and context
-- **Customer Journey**: Understand visibility across buying stages
-
 ## 🔧 Architecture
 
 ```
@@ -220,26 +203,15 @@ response = requests.post('http://localhost:8000/analyze', json={
 - **Batch Processing**: Efficient embedding operations
 - **Adaptive Scaling**: Dynamic batch sizing based on system load
 
-### Performance Metrics
-- **Website Analysis**: 5-15 minutes for 30 queries
-- **Product Analysis**: 2-5 minutes for 20 queries  
-- **Concurrent Requests**: Up to 5 simultaneous analyses
-- **Memory Usage**: 2-8GB depending on website size
 
 ## 💰 Pricing & Plans
 
 ### Free Plan
 - ✅ Informational and awareness queries only
-- ✅ Up to 100 queries per month
-- ✅ Basic citation analysis
-- ✅ 2 LLM providers (OpenAI + Gemini)
 
 ### Paid Plan  
 - ✅ All 6 intent types (complete customer journey)
-- ✅ Unlimited queries
-- ✅ Advanced insights and analytics
-- ✅ 3 LLM providers (+ Perplexity)
-- ✅ Priority support
+
 
 ## 🛠️ Development
 
@@ -290,13 +262,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Pinecone** for vector database infrastructure  
 - **FastAPI** for the high-performance web framework
 - **LangChain** for LLM orchestration tools
-
-## 🏢 Enterprise
-
-For enterprise deployments, custom integrations, or dedicated support:
-- 📧 Email: enterprise@yourcompany.com
-- 🌐 Website: [yourcompany.com/enterprise](https://yourcompany.com/enterprise)
-- 📅 [Schedule a demo](https://calendly.com/your-team/demo)
 
 ---
 
