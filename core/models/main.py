@@ -45,6 +45,7 @@ class BrandVisibilityMetrics(BaseModel):
     total_queries_analyzed: int = Field(..., description="Number of queries processed")
     queries_with_citations: int = Field(..., description="Number of queries where at least one LLM mentioned the brand")
     llm_performance: dict[str, dict[str, float]] = Field(..., description="Per-LLM performance statistics")
+    intent_visibility_breakdown: dict[str, dict[str, Any]] = Field(default_factory=dict, description="Visibility breakdown by intent type")
 
 class ProductInfo(BaseModel):
     product_description: str = Field(..., description="Brief description of what the product is and does")

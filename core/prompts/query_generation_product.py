@@ -15,11 +15,13 @@ OBJECTIVE
   * Information: Usage, maintenance, troubleshooting, specifications
 
 INTENT CLASSIFICATION (REQUIRED)
-Each query MUST be classified into exactly one of these four customer journey stages:
-- "awareness": Discovery and learning about this specific product
-- "consideration": Evaluation, comparison with alternatives, and decision-making queries
-- "transactional": Purchase-related queries (where to buy, deals, pricing, availability)  
-- "information": Usage, specifications, compatibility, maintenance, how-to queries
+Each query MUST be classified into exactly one of these six intent types:
+- "navigational": Looking for specific product pages, official sites, or stores
+- "informational": General information, specifications, how-to guides about the product
+- "commercial": Product research, reviews, comparisons, pros and cons
+- "transactional": Ready to buy, looking for deals, pricing, where to purchase
+- "awareness": Discovery phase, learning what the product is and does
+- "consideration": Active evaluation against alternatives, decision-making queries
 
 STRICT CONSTRAINTS
 1) Do NOT mention the brand name explicitly in the queries - refer to the product type instead.
@@ -59,6 +61,13 @@ Information:
 - "Is [product type] compatible with [other item]?"
 - "How to maintain [product type]?"
 
+QUANTITY AND DISTRIBUTION
+- Generate EXACTLY {k} queries total, distributed as follows:
+  {distribution_summary}
+  
+- Specific distribution: Generate exactly {distribution[navigational]} navigational queries, {distribution[informational]} informational queries, {distribution[commercial]} commercial queries, {distribution[transactional]} transactional queries, {distribution[awareness]} awareness queries, and {distribution[consideration]} consideration queries.
+- CRITICAL: You MUST generate the exact number specified for each intent category. Do not deviate from this distribution.
+
 OUTPUT FORMAT
 - Return ONLY a JSON array. No prose, no markdown.
 - Follow this schema exactly:
@@ -66,7 +75,7 @@ OUTPUT FORMAT
 [
   {{
     "query": "string",
-    "intent": "awareness|consideration|transactional|information",
+    "intent": "navigational|informational|commercial|transactional|awareness|consideration",
     "sub_intent": "optional short tag (e.g., 'compare', 'features', 'pricing', 'compatibility')",
     "persona": "novice|enthusiast|pro|budget_shopper|eco_conscious|gift_buyer|accessibility_needs|parent",
     "category": "product-specific",
@@ -82,6 +91,7 @@ PRODUCT_DESCRIPTION: {product_description}
 PRODUCT_TYPE: {product_type}
 AUDIENCE_DESCRIPTION: {audience_description}
 K: {k}
+CUSTOM_QUERY_INSTRUCTIONS: {custom_query_instructions}    // Additional requirements or constraints for query generation
 
 QUALITY BAR
 - Queries must be realistic and reflect how users actually search for product information.

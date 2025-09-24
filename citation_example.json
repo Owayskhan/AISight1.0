@@ -1,0 +1,87 @@
+{
+  "brand_profile": {
+    "icp": "Urban professionals seeking durable, mid-priced products",
+    "summary": "Premium outdoor gear brand",
+    "products": "Hiking boots, backpacks, outdoor apparel"
+  },
+  "queries": [
+    {
+      "query": "What are the best waterproof hiking boots under $200?",
+      "intent": "transactional",
+      "sub_intent": "pricing",
+      "persona": "budget_shopper",
+      "category": "outdoor gear",
+      "expected_brand_relevance": "high",
+      "locale": "en-US",
+      "notes": "Budget-conscious buyer looking for quality boots"
+    }
+  ],
+  "intent_distribution": {
+    "awareness": 2,
+    "informational": 2,
+    "consideration": 3,
+    "transactional": 3
+  },
+  "citation_analysis": {
+    "What are the best waterproof hiking boots under $200?": {
+      "overall_citation_percentage": 66.7,
+      "total_mentions": 3,
+      "llm_breakdown": {
+        "ChatOpenAI": {
+          "cited": true,
+          "mention_count": 2,
+          "visibility_score": 1.0,
+          "response": "For waterproof hiking boots under $200, I'd recommend Brand XYZ boots which offer excellent waterproofing and durability. Brand XYZ has been a trusted name in outdoor gear for decades...",
+          "sentences_with_brand": [
+            "I'd recommend Brand XYZ boots which offer excellent waterproofing and durability.",
+            "Brand XYZ has been a trusted name in outdoor gear for decades."
+          ]
+        },
+        "ChatGoogleGenerativeAI": {
+          "cited": true,
+          "mention_count": 1,
+          "visibility_score": 1.0,
+          "response": "Several brands offer great waterproof hiking boots in your budget. Brand XYZ makes some excellent options that are popular among hikers...",
+          "sentences_with_brand": [
+            "Brand XYZ makes some excellent options that are popular among hikers."
+          ]
+        },
+        "ChatPerplexity": {
+          "cited": false,
+          "mention_count": 0,
+          "visibility_score": 0.0,
+          "response": "For waterproof hiking boots under $200, look for features like Gore-Tex lining, Vibram soles, and reinforced toe caps. Popular options include various brands that offer good value in this price range...",
+          "sentences_with_brand": []
+        }
+      },
+      "explanation": "2 out of 3 AI assistants mentioned Brand XYZ. ✅ Cited by: ChatOpenAI, ChatGoogleGenerativeAI. ❌ Not cited by: ChatPerplexity."
+    }
+  },
+  "overall_brand_visibility": {
+    "average_citation_percentage": 66.7,
+    "total_queries_analyzed": 1,
+    "queries_with_citations": 1,
+    "llm_performance": {
+      "ChatOpenAI": {
+        "citation_rate": 100.0,
+        "total_mentions": 2
+      },
+      "ChatGoogleGenerativeAI": {
+        "citation_rate": 100.0,
+        "total_mentions": 1
+      },
+      "ChatPerplexity": {
+        "citation_rate": 0.0,
+        "total_mentions": 0
+      }
+    },
+    "intent_visibility_breakdown": {
+      "transactional": {
+        "total_queries": 1,
+        "queries_with_citations": 1,
+        "average_citation_percentage": 66.7,
+        "citation_rate": 100.0
+      }
+    }
+  }
+}

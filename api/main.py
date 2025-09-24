@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Dict, List, Optional, Any
 import sys
 from pathlib import Path
@@ -9,14 +9,15 @@ import time
 # Add parent directory to path to import core modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from core.website_crawler.crawler import load_sitemap_documents, find_sitemap_url, load_single_product_document
-from core.indexer.indexer import get_retriever, create_vector_store
+from core.website_crawler.crawler import find_sitemap_url, load_single_product_document
+from core.indexer.indexer_optimized import  create_vector_store_optimized, get_smart_retriever
 from core.brand_profiler.main import research_brand_info
 from core.queries.generator import generate_queries, generate_product_queries
-from core.queries.retriever import retrieve_queries_context
+from core.queries.retriever import retrieve_queries_context_concurrent
 from core.queries.answer_generator import run_query_answering_chain
 from core.citation_counter.counter import analyze_query_visibility, calculate_brand_visibility_metrics
 from core.models.main import Queries
+from core.utils import get_progress_sender,  get_distribution_summary, get_plan_filtered_distribution
 from langchain_openai import ChatOpenAI
 
 # Configure logging
@@ -29,9 +30,17 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Citation Count API", version="1.0.0")
 
 class APIKeys(BaseModel):
-    openai_api_key: str = Field(..., description="OpenAI API key")
-    gemini_api_key: str = Field(..., description="Google Gemini API key")
-    perplexity_api_key: str = Field(..., description="Perplexity API key")
+    openai_api_key: Optional[str] = Field(None, description="OpenAI API key")
+    gemini_api_key: Optional[str] = Field(None, description="Google Gemini API key")
+    perplexity_api_key: Optional[str] = Field(None, description="Perplexity API key")
+    
+    @model_validator(mode='after')
+    def at_least_one_key_required(self):
+        """Ensure at least one API key is provided"""
+        if not any([self.openai_api_key, self.gemini_api_key, self.perplexity_api_key]):
+            raise ValueError("At least one API key must be provided (openai_api_key, gemini_api_key, or perplexity_api_key)")
+        
+        return self
 
 class CitationCountRequest(BaseModel):
     brand_name: str = Field(..., description="Name of the brand")
@@ -40,7 +49,7 @@ class CitationCountRequest(BaseModel):
     sitemap_url: Optional[str] = Field(None, description="Sitemap URL (optional - will be auto-discovered if not provided)")
     product_category: str = Field(..., description="Product category for query generation")
     api_keys: APIKeys = Field(..., description="API keys for different services")
-    k: int = Field(10, description="Number of queries to generate", ge=1, le=50)
+    k: int = Field(30, description="Number of queries to generate (minimum 6 - one per intent category)", ge=6, le=100)
     # Optional brand profile fields - if provided, skip brand profiling step
     audience_description: Optional[str] = Field(None, description="Target audience/ICP description (optional)")
     brand_summary: Optional[str] = Field(None, description="Brand summary (optional)")
@@ -48,40 +57,92 @@ class CitationCountRequest(BaseModel):
     # Product-specific fields (only for url_type='product')
     product_description: Optional[str] = Field(None, description="Product description (optional - will be extracted if not provided)")
     product_type: Optional[str] = Field(None, description="Product type/category (optional - will be extracted if not provided)")
+    # Response control
+    include_responses: bool = Field(False, description="Include LLM responses in the output (default: False to reduce response size)")
+    # Real-time updates
+    group_name: Optional[str] = Field(None, description="Azure Web PubSub group name for real-time progress updates")
+    # Indexing optimization
+    indexing_batch_size: int = Field(500, description="Batch size for embedding operations (10-1000)", ge=10, le=1000)
+    use_concurrent_indexing: bool = Field(True, description="Use concurrent indexing for faster performance (default: True)")
+    # Pinecone settings
+    use_pinecone: bool = Field(True, description="Use Pinecone for persistent vector storage (default: True)")
+    force_reindex: bool = Field(False, description="Force re-indexing even if brand namespace exists in Pinecone")
+    # Custom prompt instructions
+    custom_query_generation_instructions: Optional[str] = Field(
+        None, 
+        description="Custom instructions to append to the query generation prompt. Use this to add specific requirements, constraints, or guidelines for query generation."
+    )
+    # Subscription plan
+    plan: str = Field("free", description="User subscription plan: 'free' or 'paid'. Free plan only generates informational and awareness queries.")
     
-    @validator('url_type')
+    @field_validator('url_type')
+    @classmethod
     def validate_url_type(cls, v):
         if v not in ['website', 'product']:
             raise ValueError("url_type must be either 'website' or 'product'")
         return v
     
-    @validator('sitemap_url')
-    def validate_sitemap_url(cls, v, values):
-        url_type = values.get('url_type', 'website')
+    @field_validator('plan')
+    @classmethod
+    def validate_plan(cls, v):
+        if v not in ['free', 'paid']:
+            raise ValueError("plan must be either 'free' or 'paid'")
+        return v
+    
+    @field_validator('sitemap_url')
+    @classmethod
+    def validate_sitemap_url(cls, v, info):
+        url_type = info.data.get('url_type', 'website')
         if url_type == 'product' and v is not None:
             raise ValueError("sitemap_url should not be provided when url_type is 'product'")
         return v
+    
+    @field_validator('api_keys')
+    @classmethod
+    def validate_required_api_keys(cls, v, info):
+        """Validate that required API keys are provided based on request parameters"""
+        # OpenAI is required for core functionality (embeddings, query generation, citation analysis)
+        if not v.openai_api_key:
+            raise ValueError("openai_api_key is required for embeddings, query generation, and citation analysis")
+        
+        # Gemini is required if brand profile info is not provided
+        audience_desc = info.data.get('audience_description')
+        brand_summary = info.data.get('brand_summary')
+        if not (audience_desc and brand_summary) and not v.gemini_api_key:
+            raise ValueError("gemini_api_key is required when audience_description and brand_summary are not provided")
+        
+        return v
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "brand_name": "Example Brand",
                 "brand_url": "https://example.com",
                 "url_type": "website",
                 "product_category": "Electronics",
-                "k": 10,
+                "k": 30,
                 "api_keys": {
                     "openai_api_key": "sk-...",
                     "gemini_api_key": "AIza...",
                     "perplexity_api_key": "pplx-..."
-                }
+                },
+                "include_responses": False,
+                "group_name": "analysis-session-123",
+                "indexing_batch_size": 500,
+                "use_concurrent_indexing": True,
+                "use_pinecone": True,
+                "force_reindex": False,
+                "custom_query_generation_instructions": "Focus on eco-friendly and sustainable product options. Include queries about environmental impact and certifications.",
+                "plan": "free"
             }
         }
 
 class CitationCountResponse(BaseModel):
     brand_profile: Dict[str, Any]
     queries: List[Dict[str, Any]]
+    intent_distribution: Dict[str, int] = Field(..., description="Distribution of queries by intent type")
     citation_analysis: Dict[str, Dict[str, Any]]
     overall_brand_visibility: Dict[str, Any]
+    plan_used: str = Field(..., description="Subscription plan used for the analysis")
     
 @app.get("/")
 async def root():
@@ -93,9 +154,16 @@ async def analyze_citation_count(request: CitationCountRequest):
     logger.info(f"🚀 Starting citation analysis for brand: {request.brand_name}")
     logger.info(f"📊 URL type: {request.url_type}, Category: {request.product_category}, Queries to generate: {request.k}")
     
+    # Initialize progress sender if group_name is provided
+    progress_sender = get_progress_sender(request.group_name) if request.group_name else None
+    
     try:
         # API keys are already validated by Pydantic model
         logger.info("✅ API keys validated successfully")
+        
+        # Send initial status
+        if progress_sender:
+            progress_sender.send_status("starting", f"Starting citation analysis for {request.brand_name}")
         
         # Branch logic based on URL type
         if request.url_type == "product":
@@ -130,7 +198,22 @@ async def analyze_citation_count(request: CitationCountRequest):
 
                 # Create vector store with the single product document
                 logger.info("🔍 Creating vector store for product...")
-                vector_store = await create_vector_store(product_docs, request.api_keys.openai_api_key)
+                
+                # Send progress update for indexing
+                if progress_sender:
+                    progress_sender.send_status("indexing_brand_data", "Indexing brand data")
+                
+                # Create progress callback for indexing
+                def indexing_progress_callback(current, total, message):
+                    if progress_sender:
+                        progress_sender.send_progress(current, total, message)
+                
+                vector_store = await create_vector_store_optimized(
+                    product_docs, 
+                    request.api_keys.openai_api_key,
+                    batch_size=request.indexing_batch_size,
+                    progress_callback=indexing_progress_callback
+                )
                 retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 4})
                 content_preloaded = True
                 logger.info("✅ Vector store created for product")
@@ -155,20 +238,32 @@ async def analyze_citation_count(request: CitationCountRequest):
                     logger.error(f"❌ Sitemap discovery failed: {str(e)}")
                     raise HTTPException(status_code=400, detail=str(e))
             
-            # Step 2: Extract and index sitemap URLs
-            logger.info("📥 Loading sitemap documents...")
+            # Step 2: Smart indexing with Pinecone or FAISS fallback
+            logger.info("🔍 Setting up smart retriever...")
             try:
-                sitemap_docs = load_sitemap_documents(sitemap_url)
-                if not sitemap_docs:
-                    logger.error("❌ No URLs found in sitemap")
-                    raise HTTPException(status_code=400, detail="No URLs found in sitemap")
+                # Send progress update for indexing
+                if progress_sender:
+                    progress_sender.send_status("indexing_brand_data", "Indexing brand data")
                 
-                logger.info(f"✅ Loaded {len(sitemap_docs)} URLs from sitemap")
+                # Create progress callback for indexing
+                def indexing_progress_callback(current, total, message):
+                    if progress_sender:
+                        progress_sender.send_progress(current, total, message)
                 
-                logger.info("🔍 Creating retriever from sitemap...")
-                retriever = await get_retriever(sitemap_url, request.api_keys.openai_api_key)
-                content_preloaded = False
-                logger.info("✅ Retriever created successfully")
+                # Use smart retriever that handles Pinecone vs FAISS automatically
+                retriever = await get_smart_retriever(
+                    brand_name=request.brand_name,
+                    sitemap_url=sitemap_url, 
+                    api_key=request.api_keys.openai_api_key,
+                    k=4,
+                    batch_size=request.indexing_batch_size,
+                    use_pinecone=request.use_pinecone,
+                    force_reindex=request.force_reindex,
+                    use_parallel_sitemap=True,  # Always use parallel sitemap loading
+                    progress_callback=indexing_progress_callback
+                )
+                content_preloaded = False  # URLs indexed, content loaded during retrieval
+                logger.info("✅ Smart retriever created successfully")
                 
             except Exception as e:
                 logger.error(f"❌ Sitemap processing failed: {str(e)}")
@@ -176,6 +271,11 @@ async def analyze_citation_count(request: CitationCountRequest):
         
         # Step 2: Handle brand profile - either use provided info or generate it
         logger.info("👥 Processing brand profile...")
+        
+        # Send progress update for collecting brand data
+        if progress_sender:
+            progress_sender.send_status("collecting_brand_data", "Collecting brand data")
+        
         if request.audience_description and request.brand_summary:
             logger.info("📝 Using provided brand profile information")
             audience_description = request.audience_description
@@ -207,6 +307,20 @@ async def analyze_citation_count(request: CitationCountRequest):
         
         # Step 3: Generate queries based on URL type
         logger.info(f"❓ Generating {request.k} queries...")
+        
+        # Log if custom instructions are provided
+        if request.custom_query_generation_instructions:
+            logger.info(f"📝 Using custom query generation instructions: {request.custom_query_generation_instructions[:100]}...")
+        
+        # Show query distribution based on plan
+        distribution = get_plan_filtered_distribution(request.k, request.plan)
+        distribution_summary = get_distribution_summary(distribution)
+        logger.info(f"📊 Query Distribution ({request.plan} plan): {distribution_summary}")
+        
+        # Send progress update for generating queries
+        if progress_sender:
+            progress_sender.send_status("generating_queries", "Generating queries")
+        
         try:
             if request.url_type == "product":
                 logger.info("🛍️ Using product-specific query generation")
@@ -226,7 +340,9 @@ async def analyze_citation_count(request: CitationCountRequest):
                     product_type=product_type,
                     openai_api_key=request.api_keys.openai_api_key,
                     audience_description=audience_description,
-                    k=request.k
+                    k=request.k,
+                    custom_instructions=request.custom_query_generation_instructions,
+                    plan=request.plan
                 )
             else:
                 logger.info("🌐 Using category-based query generation")
@@ -237,7 +353,9 @@ async def analyze_citation_count(request: CitationCountRequest):
                     locales=locales,
                     brand_summary=brand_summary,
                     brand_products=request.brand_products,
-                    k=request.k
+                    k=request.k,
+                    custom_instructions=request.custom_query_generation_instructions,
+                    plan=request.plan
                 )
             
             queries_obj = Queries(**queries)
@@ -254,10 +372,12 @@ async def analyze_citation_count(request: CitationCountRequest):
         # Step 4: Retrieve context for queries
         logger.info("🔍 Retrieving context for queries...")
         try:
-            retrieved_queries = await retrieve_queries_context(
+            # Use concurrent context retrieval for better performance
+            retrieved_queries = await retrieve_queries_context_concurrent(
                 queries_obj, 
                 retriever, 
-                content_preloaded=content_preloaded
+                content_preloaded=content_preloaded,
+                max_concurrent=20  # Allow up to 20 concurrent downloads
             )
             logger.info(f"✅ Retrieved context for {len(retrieved_queries)} queries")
             
@@ -284,7 +404,9 @@ async def analyze_citation_count(request: CitationCountRequest):
             
             try:
                 # Generate answers from all LLMs (already concurrent within this function)
-                logger.info(f"   🤖 Generating answers from 3 LLMs...")
+                num_llms = sum(1 for key in ["openai_api_key", "gemini_api_key", "perplexity_api_key"] 
+                             if getattr(request.api_keys, key))
+                logger.info(f"   🤖 Generating answers from {num_llms} LLMs...")
                 llm_responses = await run_query_answering_chain(
                     query=query.query,
                     context=context,
@@ -302,7 +424,8 @@ async def analyze_citation_count(request: CitationCountRequest):
                 visibility_analysis = await analyze_query_visibility(
                     llm_responses=llm_responses,
                     brand_name=request.brand_name,
-                    citation_llm=citation_llm
+                    citation_llm=citation_llm,
+                    include_responses=request.include_responses
                 )
                 
                 citation_percentage = visibility_analysis.overall_citation_percentage
@@ -314,13 +437,49 @@ async def analyze_citation_count(request: CitationCountRequest):
                 logger.error(f"   ❌ Failed processing query {idx}: {str(e)}")
                 raise HTTPException(status_code=500, detail=f"Query processing error for query {idx}: {str(e)}")
         
-        # Process queries with controlled concurrency (batches of 3 to respect API limits)
+        # Process queries with adaptive batch sizing based on available LLMs
         citation_results = {}
-        batch_size = 3  # Process 3 queries at a time to balance speed vs API limits
+        
+        # Calculate optimal batch size based on number of active LLMs and total queries
+        active_llms = sum(1 for key in ["openai_api_key", "gemini_api_key", "perplexity_api_key"] 
+                         if getattr(request.api_keys, key))
+        
+        # Adaptive batch sizing logic:
+        # - 1 LLM: batch_size = 4-5 (can handle more queries since less API pressure)
+        # - 2 LLMs: batch_size = 3-4 (moderate batching)
+        # - 3 LLMs: batch_size = 2-3 (conservative to avoid rate limits)
+        if active_llms == 1:
+            batch_size = min(5, max(4, total_queries // 3))  # 4-5 queries per batch
+        elif active_llms == 2:
+            batch_size = min(4, max(3, total_queries // 4))  # 3-4 queries per batch
+        else:  # 3 LLMs
+            batch_size = min(3, max(2, total_queries // 5))  # 2-3 queries per batch
+        
+        # Ensure at least 1 query per batch
+        batch_size = max(1, batch_size)
+        
+        logger.info(f"🚀 Using adaptive batch size: {batch_size} (based on {active_llms} active LLMs, {total_queries} total queries)")
         
         for i in range(0, len(retrieved_queries), batch_size):
             batch = retrieved_queries[i:i + batch_size]
             logger.info(f"📦 Processing batch {i//batch_size + 1}/{(len(retrieved_queries) + batch_size - 1)//batch_size}")
+            
+            # Send progress update for running queries
+            if progress_sender:
+                # Get model names that will be used
+                models = []
+                if request.api_keys.openai_api_key:
+                    models.append("OpenAI")
+                if request.api_keys.gemini_api_key:
+                    models.append("Gemini")
+                if request.api_keys.perplexity_api_key:
+                    models.append("Perplexity")
+                    
+                progress_sender.send_progress(
+                    current=i,
+                    total=len(retrieved_queries),
+                    step=f"Running queries over {', '.join(models)}"
+                )
             
             # Create tasks for current batch
             tasks = [process_single_query(i + j + 1, item) for j, item in enumerate(batch)]
@@ -331,9 +490,20 @@ async def analyze_citation_count(request: CitationCountRequest):
             # Update results
             for query_text, analysis in batch_results:
                 citation_results[query_text] = analysis
+            
+            # Add adaptive delay between batches to prevent rate limiting
+            # Smaller batches = shorter delays, larger batches = longer delays
+            if i + batch_size < len(retrieved_queries):
+                delay = max(0.5, min(2.0, batch_size * 0.3))  # 0.5-2.0 second delay based on batch size
+                await asyncio.sleep(delay)
         
         # Calculate overall brand visibility metrics
         logger.info("📈 Calculating overall brand visibility metrics...")
+        
+        # Send progress update for generating report
+        if progress_sender:
+            progress_sender.send_status("generating_report", "Generating report")
+        
         try:
             query_analyses = {}
             for query_text, analysis_data in citation_results.items():
@@ -351,11 +521,20 @@ async def analyze_citation_count(request: CitationCountRequest):
                     explanation=analysis_data["explanation"]
                 )
             
-            overall_visibility = calculate_brand_visibility_metrics(query_analyses)
+            # Create a mapping of query text to intent for the metrics calculation
+            query_intents = {q.query: q.intent for q in queries_obj.queries}
+            overall_visibility = calculate_brand_visibility_metrics(query_analyses, query_intents)
             
             logger.info(f"✅ Overall brand visibility calculated:")
             logger.info(f"   📊 Average Citation Percentage: {overall_visibility.average_citation_percentage}%")
             logger.info(f"   📈 Queries with Citations: {overall_visibility.queries_with_citations}/{overall_visibility.total_queries_analyzed}")
+            
+            # Log intent breakdown if available
+            if overall_visibility.intent_visibility_breakdown:
+                logger.info(f"   📋 Visibility by Intent Type:")
+                for intent, stats in overall_visibility.intent_visibility_breakdown.items():
+                    if stats["total_queries"] > 0:
+                        logger.info(f"      • {intent.capitalize()}: {stats['citation_rate']}% citation rate ({stats['queries_with_citations']}/{stats['total_queries']} queries)")
             
         except Exception as e:
             logger.error(f"❌ Overall metrics calculation failed: {str(e)}")
@@ -375,6 +554,25 @@ async def analyze_citation_count(request: CitationCountRequest):
                 "is_international": False
             }
         
+        # Calculate intent distribution
+        intent_distribution = {
+            "navigational": 0,
+            "informational": 0,
+            "commercial": 0,
+            "transactional": 0,
+            "awareness": 0,
+            "consideration": 0
+        }
+        
+        # Count queries by intent type
+        for query in queries_obj.queries:
+            intent = query.intent.lower()
+            # Handle both "information" and "informational" labels
+            if intent == "information":
+                intent = "informational"
+            if intent in intent_distribution:
+                intent_distribution[intent] += 1
+        
         # Calculate total time
         total_time = time.time() - start_time
         logger.info(f"🎉 Citation analysis completed successfully!")
@@ -383,15 +581,35 @@ async def analyze_citation_count(request: CitationCountRequest):
         logger.info(f"   🎯 Brand: {request.brand_name}")
         logger.info(f"   ❓ Queries Processed: {len(queries_obj.queries)}")
         logger.info(f"   📈 Average Visibility: {overall_visibility.average_citation_percentage}%")
+        logger.info(f"   📋 Intent Distribution: {intent_distribution}")
+        
+        # Send final results via progress sender
+        if progress_sender:
+            progress_sender.send_final_results(
+                overall_visibility=overall_visibility.average_citation_percentage,
+                queries_analyzed=len(queries_obj.queries),
+                intent_distribution=intent_distribution,
+                processing_time=round(total_time, 2)
+            )
+            progress_sender.send_status("completed", "Analysis completed successfully")
         
         return CitationCountResponse(
             brand_profile=brand_profile_data,
             queries=[q.model_dump() for q in queries_obj.queries],
+            intent_distribution=intent_distribution,
             citation_analysis=citation_results,
-            overall_brand_visibility=overall_visibility.model_dump()
+            overall_brand_visibility=overall_visibility.model_dump(),
+            plan_used=request.plan
         )
         
-    except HTTPException:
+    except HTTPException as e:
+        # Send error notification via progress sender
+        if progress_sender:
+            progress_sender.send_error(
+                error_message=str(e.detail),
+                error_type="http_error",
+                status_code=e.status_code
+            )
         # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
@@ -399,6 +617,15 @@ async def analyze_citation_count(request: CitationCountRequest):
         total_time = time.time() - start_time
         logger.error(f"💥 Unexpected error after {total_time:.2f}s: {str(e)}")
         logger.error(f"Error type: {type(e).__name__}")
+        
+        # Send error notification via progress sender
+        if progress_sender:
+            progress_sender.send_error(
+                error_message=str(e),
+                error_type="internal_error",
+                processing_time=round(total_time, 2)
+            )
+        
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 if __name__ == "__main__":

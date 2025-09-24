@@ -12,6 +12,9 @@ import html2text
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 from langchain_openai import ChatOpenAI
 from core.models.main import ProductInfo
+import logging
+
+logger = logging.getLogger(__name__)
 
 def find_sitemap_url(website_url: str) -> str:
     """
@@ -70,11 +73,78 @@ def load_sitemap_documents(sitemap_url: str):
     
     return sitemap_docs
 
+async def load_sitemap_documents_parallel(sitemap_url: str, max_concurrent: int = 50):
+    """
+    Load sitemap documents with parallel processing for better performance
+    
+    Args:
+        sitemap_url: URL of the sitemap
+        max_concurrent: Maximum concurrent URL processing
+    
+    Returns:
+        List of Document objects
+    """
+    import asyncio
+    import aiohttp
+    from xml.etree import ElementTree as ET
+    
+    async def get_sitemap_urls_async(url: str, session: aiohttp.ClientSession):
+        """Async version of sitemap URL extraction"""
+        try:
+            async with session.get(url, timeout=10) as response:
+                content = await response.read()
+                
+                # Parse the XML
+                root = ET.fromstring(content)
+                namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+                urls = []
+                seen_urls = set()
+                
+                for url_element in root.findall('.//ns:loc', namespace):
+                    url_text = url_element.text.strip() if url_element.text else ""
+                    if url_text and url_text not in seen_urls:
+                        seen_urls.add(url_text)
+                        urls.append(url_text)
+                
+                logger.info(f"Found {len(urls)} unique URLs in sitemap (deduplicated from {len(root.findall('.//ns:loc', namespace))} total)")
+                return urls
+        except Exception as e:
+            logger.error(f"Error loading sitemap {url}: {str(e)}")
+            # Fallback to synchronous method
+            return get_sitemap_urls(url)
+    
+    async def create_document_async(url: str):
+        """Async document creation (though this is fast, keeping pattern for consistency)"""
+        return Document(
+            page_content=url, 
+            metadata={"source": url}
+        )
+    
+    # Use aiohttp for async HTTP requests
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        # Get URLs from sitemap asynchronously
+        sitemap_urls = await get_sitemap_urls_async(sitemap_url, session)
+        
+        # Create semaphore for controlled concurrency
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def create_doc_with_semaphore(url):
+            async with semaphore:
+                return await create_document_async(url)
+        
+        # Create all documents concurrently
+        tasks = [create_doc_with_semaphore(url) for url in sitemap_urls]
+        sitemap_docs = await asyncio.gather(*tasks)
+        
+        return sitemap_docs
+
 async def extract_product_info_llm(page_content: str, openai_api_key: str) -> ProductInfo:
     """
     Extract product information using LLM with structured output
     """
-    llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o-mini", temperature=0)
+    from core.config import ModelConfig
+    llm = ChatOpenAI(api_key=openai_api_key, model=ModelConfig.BRAND_PROFILING_MODEL, temperature=ModelConfig.DEFAULT_TEMPERATURE)
     
     prompt = f"""
     Analyze the following product page content and extract two pieces of information:
@@ -215,10 +285,15 @@ def get_sitemap_urls(url):
 
     namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
     urls = []
+    seen_urls = set()  # Track unique URLs
 
     for url_element in root.findall('.//ns:loc', namespace):
-        urls.append(url_element.text)
+        url_text = url_element.text.strip() if url_element.text else ""
+        if url_text and url_text not in seen_urls:
+            seen_urls.add(url_text)
+            urls.append(url_text)
     
+    logger.info(f"Found {len(urls)} unique URLs in sitemap (deduplicated from {len(root.findall('.//ns:loc', namespace))} total)")
     return urls
 
 

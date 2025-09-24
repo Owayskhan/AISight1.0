@@ -7,12 +7,16 @@ langchain-google-genai
 langchain-community
 langchain-perplexity
 langchain-text-splitters
+langchain-pinecone
 openai
 google-generativeai
 faiss-cpu
+pinecone[asyncio]
 python-dotenv
 requests
 lxml
 tavily-python
 html2text
 beautifulsoup4
+azure-messaging-webpubsubservice
+aiohttp

@@ -23,7 +23,7 @@ async def analyze_citations_count(llm, response, brand_name):
     })
     return count
 
-async def analyze_query_visibility(llm_responses: Dict[str, any], brand_name: str, citation_llm) -> QueryVisibilityAnalysis:
+async def analyze_query_visibility(llm_responses: Dict[str, any], brand_name: str, citation_llm, include_responses: bool = True) -> QueryVisibilityAnalysis:
     """
     Analyze visibility percentage for a single query across all LLMs
     
@@ -66,7 +66,7 @@ async def analyze_query_visibility(llm_responses: Dict[str, any], brand_name: st
             cited=cited,
             mention_count=citation_result.count,
             visibility_score=1.0 if cited else 0.0,
-            response=response.content,
+            response=response.content if include_responses else "",
             sentences_with_brand=citation_result.sentences
         )
     
@@ -95,7 +95,7 @@ async def analyze_query_visibility(llm_responses: Dict[str, any], brand_name: st
         explanation=explanation
     )
 
-def calculate_brand_visibility_metrics(query_analyses: Dict[str, QueryVisibilityAnalysis]) -> BrandVisibilityMetrics:
+def calculate_brand_visibility_metrics(query_analyses: Dict[str, QueryVisibilityAnalysis], query_intents: Dict[str, str] = None) -> BrandVisibilityMetrics:
     """
     Calculate aggregated visibility metrics across all queries
     
@@ -140,9 +140,49 @@ def calculate_brand_visibility_metrics(query_analyses: Dict[str, QueryVisibility
             "total_mentions": total_mentions
         }
     
+    # Calculate intent-based visibility breakdown
+    intent_visibility_breakdown = {}
+    if query_intents:
+        # Initialize intent categories
+        intent_categories = ["awareness", "informational", "consideration", "transactional"]
+        for intent in intent_categories:
+            intent_visibility_breakdown[intent] = {
+                "total_queries": 0,
+                "queries_with_citations": 0,
+                "average_citation_percentage": 0.0,
+                "citation_rate": 0.0
+            }
+        
+        # Group queries by intent and calculate metrics
+        for query_text, analysis in query_analyses.items():
+            intent = query_intents.get(query_text, "").lower()
+            # Handle both "information" and "informational" labels
+            if intent == "information":
+                intent = "informational"
+            
+            if intent in intent_visibility_breakdown:
+                intent_visibility_breakdown[intent]["total_queries"] += 1
+                if analysis.overall_citation_percentage > 0:
+                    intent_visibility_breakdown[intent]["queries_with_citations"] += 1
+                intent_visibility_breakdown[intent]["average_citation_percentage"] += analysis.overall_citation_percentage
+        
+        # Calculate averages and rates for each intent
+        for intent, stats in intent_visibility_breakdown.items():
+            if stats["total_queries"] > 0:
+                stats["average_citation_percentage"] = round(
+                    stats["average_citation_percentage"] / stats["total_queries"], 1
+                )
+                stats["citation_rate"] = round(
+                    (stats["queries_with_citations"] / stats["total_queries"]) * 100, 1
+                )
+            else:
+                stats["average_citation_percentage"] = 0.0
+                stats["citation_rate"] = 0.0
+    
     return BrandVisibilityMetrics(
         average_citation_percentage=round(average_percentage, 1),
         total_queries_analyzed=total_queries,
         queries_with_citations=queries_with_citations,
-        llm_performance=llm_stats
+        llm_performance=llm_stats,
+        intent_visibility_breakdown=intent_visibility_breakdown
     )

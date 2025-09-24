@@ -17,11 +17,13 @@ OBJECTIVE
   (d) Include realistic constraints: budget, sustainability, sizing, region, material, warranty, return policy, etc.
 
 INTENT LABELING (REQUIRED)
-- For each query, classify it into exactly one of these four customer journey stages:
-  * "awareness": Discovery and learning about the product category
-  * "consideration": Evaluation, comparison, and decision-making queries  
-  * "transactional": Purchase-related queries (where to buy, deals, pricing)
-  * "information": Usage, specifications, how-to, and educational queries
+- For each query, classify it into exactly one of these six intent types:
+  * "navigational": Looking for specific websites, stores, or brand pages
+  * "informational": General information, how-to guides, educational content
+  * "commercial": Product research, reviews, comparisons before purchasing
+  * "transactional": Ready to buy, looking for deals, pricing, where to purchase
+  * "awareness": Discovery phase, learning about product categories or solutions
+  * "consideration": Active evaluation, comparing options, decision-making process
 
 STRICT CONSTRAINTS
 1) NO BRAND NAMES in the queries (real or fictitious).
@@ -39,9 +41,13 @@ DIVERSITY REQUIREMENTS
 - Vary contexts: quick mobile lookups vs deep research; online vs in-store; regional/regulatory differences if LOCALES are given.
 - Vary query shapes: questions, imperative prompts, comparisons, checklists, step-by-steps.
 
-QUANTITY
-- Aim for {k} queries per category .
+QUANTITY AND DISTRIBUTION
+- Generate EXACTLY {k} queries total, distributed as follows:
+  {distribution_summary}
+  
+- Specific distribution: Generate exactly {distribution[navigational]} navigational queries, {distribution[informational]} informational queries, {distribution[commercial]} commercial queries, {distribution[transactional]} transactional queries, {distribution[awareness]} awareness queries, and {distribution[consideration]} consideration queries.
 - If LOCALES provided, spread queries across locales (and reflect regional wording where natural).
+- CRITICAL: You MUST generate the exact number specified for each intent category. Do not deviate from this distribution.
 
 EXPECTED BRAND RELEVANCE (heuristic)
 - Annotate likelihood that an unbiased assistant would cite a specific brand when answering this query:
@@ -57,7 +63,7 @@ OUTPUT FORMAT
 [
   {{
     "query": "string",
-    "intent": "awareness|consideration|transactional|information",
+    "intent": "navigational|informational|commercial|transactional|awareness|consideration",
     "sub_intent": "optional short tag (e.g., 'compare', 'sizing', 'care', 'compatibility')",
     "persona": "novice|enthusiast|pro|budget_shopper|eco_conscious|gift_buyer|accessibility_needs|parent",
     "category": "one of PRODUCT_CATEGORIES",
@@ -72,7 +78,8 @@ PRODUCT_CATEGORIES: {product_category}              // e.g., ["women's leather b
 AUDIENCE / ICP: {audience_description}  // e.g., "urban professionals; mid-priced; durability focus"
 LOCALES : {locales}                      // e.g., ["en-US", "fr-FR", "ar-MA"]
 BRAND SUMMARY : {brand_summary}
-BRAND PRODUCTS SUMMARY : {brand_products} 
+BRAND PRODUCTS SUMMARY : {brand_products}
+CUSTOM QUERY INSTRUCTIONS: {custom_query_instructions}    // Additional requirements or constraints for query generation 
 
 QUALITY BAR
 - Queries must align with PRODUCT_CATEGORIES and the ICP’s goals, constraints, and language.
