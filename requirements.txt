@@ -6,6 +6,7 @@ langchain-openai
 langchain-google-genai
 langchain-community
 langchain-perplexity
+langchain_tavily
 langchain-text-splitters
 langchain-pinecone
 openai
