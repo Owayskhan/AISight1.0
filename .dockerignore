@@ -1,0 +1,54 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+cdenv/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*
+
+# Logs
+*.log
+
+# Documentation (not needed in container)
+docs/
+*.md
+
+# Test files
+tests/
+test_*.py
+
+# Examples and notebooks
+examples/
+notebooks/
+*.ipynb
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

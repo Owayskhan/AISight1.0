@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Dict, List, Optional, Any
 import sys
@@ -28,6 +29,28 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Citation Count API", version="1.0.0")
+
+
+class SocketIOBlockerMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to handle Socket.IO polling requests and prevent log flooding
+    """
+    
+    async def dispatch(self, request: Request, call_next):
+        # Check if this is a Socket.IO polling request
+        if "/ws/socket.io/" in str(request.url) or request.url.path.startswith("/socket.io/"):
+            logger.info(f"Blocked Socket.IO request from {request.client.host}: {request.url}")
+            return Response(
+                content='{"error": "Socket.IO not supported. Please connect directly to Azure Web PubSub."}',
+                status_code=400,
+                headers={"Content-Type": "application/json"}
+            )
+        
+        return await call_next(request)
+
+
+# Add the middleware to block Socket.IO requests
+app.add_middleware(SocketIOBlockerMiddleware)
 
 class APIKeys(BaseModel):
     openai_api_key: Optional[str] = Field(None, description="OpenAI API key")
@@ -147,6 +170,34 @@ class CitationCountResponse(BaseModel):
 @app.get("/")
 async def root():
     return {"message": "Citation Count API", "endpoints": ["/analyze"]}
+
+
+@app.get("/ws/socket.io/")
+async def socket_io_redirect():
+    """Handle Socket.IO polling requests with proper error message"""
+    return {
+        "error": "Socket.IO not supported by this API",
+        "message": "This API uses Azure Web PubSub for real-time updates, not Socket.IO",
+        "instructions": {
+            "for_real_time_updates": "Connect directly to Azure Web PubSub using the connection string",
+            "api_usage": "Use POST /analyze endpoint for citation analysis",
+            "documentation": "See API documentation for proper usage"
+        }
+    }
+
+
+@app.api_route("/socket.io/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def socket_io_fallback(path: str):
+    """Catch-all for any Socket.IO requests"""
+    return {
+        "error": "Socket.IO not supported by this API",
+        "message": "This API uses Azure Web PubSub for real-time updates, not Socket.IO",
+        "requested_path": f"/socket.io/{path}",
+        "instructions": {
+            "for_real_time_updates": "Connect directly to Azure Web PubSub using the connection string",
+            "api_usage": "Use POST /analyze endpoint for citation analysis"
+        }
+    }
 
 @app.post("/analyze", response_model=CitationCountResponse)
 async def analyze_citation_count(request: CitationCountRequest):
