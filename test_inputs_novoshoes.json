@@ -1,0 +1,343 @@
+{
+  "brand": "https://www.novoshoes.com.au/",
+  "test_scenarios": [
+    {
+      "name": "Basic Website Analysis - Limited Intents",
+      "description": "Website analysis with only informational and awareness intents",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 6,
+        "user_intent": ["informational", "awareness"]
+      }
+    },
+    {
+      "name": "Comprehensive Website Analysis - All Intents",
+      "description": "Full website analysis with all available intent types",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's fashion footwear",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 30,
+        "audience_description": "Fashion-conscious women aged 18-35 who value style and affordability",
+        "custom_instructions": "Focus on trendy, affordable women's footwear for young professionals and students"
+      }
+    },
+    {
+      "name": "Product-Specific Analysis",
+      "description": "Analysis of a specific product page",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/products/heels",
+        "url_type": "product",
+        "product_category": "women's heels",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 18,
+        "product_name": "Novo Women's Heels",
+        "product_description": "Stylish and comfortable women's heels for various occasions",
+        "product_type": "footwear"
+      }
+    },
+    {
+      "name": "User Intent Specific Analysis",
+      "description": "Analysis focusing only on specific user intents",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "affordable women's shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 12,
+        "user_intent": ["commercial", "transactional"],
+        "audience_description": "Budget-conscious women looking for stylish yet affordable footwear"
+      }
+    },
+    {
+      "name": "Pre-defined Queries Only",
+      "description": "Using custom pre-defined queries without generation",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 8,
+        "queries": [
+          {
+            "query": "best affordable women's shoes Australia",
+            "intent": "commercial",
+            "sub_intent": "price_comparison",
+            "persona": "budget_conscious",
+            "category": "women's shoes",
+            "expected_brand_relevance": "high",
+            "locale": "en-AU",
+            "notes": "Australian market specific"
+          },
+          {
+            "query": "where to buy trendy heels online Australia",
+            "intent": "transactional",
+            "sub_intent": "store_locator",
+            "persona": "fashion_enthusiast",
+            "category": "women's shoes",
+            "expected_brand_relevance": "medium",
+            "locale": "en-AU",
+            "notes": "Purchase intent query"
+          },
+          {
+            "query": "Novo shoes review quality",
+            "intent": "informational",
+            "sub_intent": "product_review",
+            "persona": "researcher",
+            "category": "women's shoes",
+            "expected_brand_relevance": "high",
+            "locale": "en-AU",
+            "notes": "Brand-specific research"
+          },
+          {
+            "query": "comfortable work shoes for women",
+            "intent": "commercial",
+            "sub_intent": "use_case_specific",
+            "persona": "professional",
+            "category": "women's shoes",
+            "expected_brand_relevance": "medium",
+            "locale": "en-AU",
+            "notes": "Professional use case"
+          },
+          {
+            "query": "latest women's shoe trends 2024",
+            "intent": "informational",
+            "sub_intent": "trend_research",
+            "persona": "trend_follower",
+            "category": "women's shoes",
+            "expected_brand_relevance": "low",
+            "locale": "en-AU",
+            "notes": "Fashion trends"
+          },
+          {
+            "query": "Australian shoe brands vs international",
+            "intent": "commercial",
+            "sub_intent": "brand_comparison",
+            "persona": "brand_researcher",
+            "category": "women's shoes",
+            "expected_brand_relevance": "medium",
+            "locale": "en-AU",
+            "notes": "Local vs international comparison"
+          },
+          {
+            "query": "how to choose the right heel height",
+            "intent": "informational",
+            "sub_intent": "buying_guide",
+            "persona": "novice",
+            "category": "women's shoes",
+            "expected_brand_relevance": "low",
+            "locale": "en-AU",
+            "notes": "Educational content"
+          },
+          {
+            "query": "Novo shoes store locations Sydney",
+            "intent": "navigational",
+            "sub_intent": "store_locator",
+            "persona": "local_shopper",
+            "category": "women's shoes",
+            "expected_brand_relevance": "high",
+            "locale": "en-AU",
+            "notes": "Direct brand search"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Hybrid Mode - Queries + User Intent",
+      "description": "Pre-defined queries with additional intent-based generation",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's fashion shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 15,
+        "user_intent": ["awareness", "consideration", "transactional"],
+        "queries": [
+          {
+            "query": "best budget women's shoes brands Australia",
+            "intent": "commercial",
+            "sub_intent": "brand_comparison",
+            "persona": "budget_conscious",
+            "category": "women's shoes",
+            "expected_brand_relevance": "high",
+            "locale": "en-AU",
+            "notes": "Commercial query provided"
+          },
+          {
+            "query": "women's shoes online shopping Australia",
+            "intent": "navigational",
+            "sub_intent": "shopping_platform",
+            "persona": "online_shopper",
+            "category": "women's shoes",
+            "expected_brand_relevance": "medium",
+            "locale": "en-AU",
+            "notes": "Navigation query provided"
+          }
+        ],
+        "audience_description": "Australian women seeking fashionable and affordable footwear options"
+      }
+    },
+    {
+      "name": "Force Reindex Analysis",
+      "description": "Force reindexing of website content even if already cached",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 20,
+        "force_reindex": true,
+        "use_pinecone": true,
+        "audience_description": "Young Australian women interested in affordable fashion"
+      }
+    },
+    {
+      "name": "Local Vector Storage Only",
+      "description": "Analysis without using Pinecone vector database",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 12,
+        "use_pinecone": false,
+        "audience_description": "Fashion-forward women seeking quality footwear"
+      }
+    },
+    {
+      "name": "Multi-locale Analysis",
+      "description": "Analysis with multiple locale specifications",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 24,
+        "locales": ["en-AU", "en-US", "en-GB"],
+        "audience_description": "English-speaking women in Australia, US, and UK markets",
+        "custom_instructions": "Include queries relevant to multiple English-speaking markets"
+      }
+    },
+    {
+      "name": "Edge Case - Minimal Configuration",
+      "description": "Minimal required fields only",
+      "request": {
+        "brand_name": "Novo",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "product_category": "shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY"
+        },
+        "k": 6
+      }
+    },
+    {
+      "name": "Edge Case - Single Intent Focus",
+      "description": "Analysis focusing on only one user intent",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's shoes",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 10,
+        "user_intent": ["transactional"],
+        "audience_description": "Ready-to-buy customers looking for immediate purchase options"
+      }
+    },
+    {
+      "name": "Edge Case - Maximum Queries",
+      "description": "Analysis with maximum allowed queries",
+      "request": {
+        "brand_name": "Novo Shoes",
+        "brand_url": "https://www.novoshoes.com.au/",
+        "url_type": "website",
+        "product_category": "women's fashion footwear",
+        "api_keys": {
+          "openai_api_key": "YOUR_OPENAI_KEY",
+          "gemini_api_key": "YOUR_GEMINI_KEY",
+          "perplexity_api_key": "YOUR_PERPLEXITY_KEY"
+        },
+        "k": 100,
+        "audience_description": "Comprehensive analysis covering all customer segments",
+        "custom_instructions": "Generate diverse queries covering all aspects of women's footwear shopping journey"
+      }
+    }
+  ],
+  "usage_notes": {
+    "api_keys": "Replace 'YOUR_OPENAI_KEY', 'YOUR_GEMINI_KEY', and 'YOUR_PERPLEXITY_KEY' with actual API keys",
+    "testing_order": "Start with 'Basic Website Analysis' to verify setup, then test other scenarios",
+    "response_times": {
+      "k=6": "15-30 seconds",
+      "k=30": "30-60 seconds", 
+      "k=100": "60-120 seconds"
+    },
+    "intent_types": {
+      "available_intents": ["navigational", "informational", "commercial", "transactional", "awareness", "consideration"],
+      "default_behavior": "If user_intent is not specified, queries are generated for all 6 intent types",
+      "user_intent_behavior": "If user_intent is specified, only those intent types will be used for query generation"
+    },
+    "url_types": {
+      "website": "Analyzes entire website via sitemap discovery",
+      "product": "Analyzes specific product page content"
+    },
+    "troubleshooting": {
+      "session_closed_errors": "Temporary network issues, retry the request",
+      "timeout_errors": "Reduce k value or check API key limits",
+      "validation_errors": "Ensure all required fields are provided"
+    }
+  }
+}

@@ -18,7 +18,7 @@ class ModelConfig:
     DEFAULT_TEMPERATURE = 0
     
     # Model selection for different tasks
-    QUERY_GENERATION_MODEL = GPT_4_MODEL  # Better instruction following
+    QUERY_GENERATION_MODEL = GPT_4O_MINI_MODEL  # Fast and cost-effective for parallel generation
     BRAND_PROFILING_MODEL = GPT_4O_MINI_MODEL  # Cost-effective for simple tasks
     CITATION_ANALYSIS_MODEL = GPT_4O_MINI_MODEL  # Structured output tasks
 
@@ -47,6 +47,13 @@ class BatchConfig:
     MAX_CONCURRENT_DOWNLOADS = 5
     MAX_CONCURRENT_SITEMAP_PROCESSING = 50
     MAX_CONCURRENT_QUERIES = 20
+    MAX_CONCURRENT_CONTEXT_DOWNLOADS = 25   # Conservative for maximum stability
+    VECTOR_QUERY_BATCH_SIZE = 15  # Batch size for parallel vector store queries
+    
+    # API-specific concurrency limits for LLM calls
+    MAX_CONCURRENT_OPENAI_REQUESTS = 50    # Conservative limit for OpenAI (500/min rate limit)
+    MAX_CONCURRENT_GEMINI_REQUESTS = 15    # Conservative limit for Gemini (60/min rate limit)  
+    MAX_CONCURRENT_PERPLEXITY_REQUESTS = 8 # Conservative limit for Perplexity (20/min rate limit)
     
     # Retry configuration
     MAX_RETRIES = 3
