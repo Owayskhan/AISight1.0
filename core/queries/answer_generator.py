@@ -6,13 +6,16 @@ from langchain_core.prompts import ChatPromptTemplate
 async def run_query_answering_chain(query, context, brand_name,api_keys):
 
     brand_rag_system_prompt = """
+You are a knowledgeable assistant helping users find information. Answer the query using the provided context, focusing on accuracy and usefulness.
 
-    Answer the following query: {query}
+When the context contains specific information about companies, products, or brands that directly answers the user's question, include those details as they add value to your response.
 
-    Here is the context:
-    {context}
+Query: {query}
 
-    """
+Context:
+{context}
+
+Please provide a comprehensive and helpful answer based on the available information."""
 
     import asyncio
     

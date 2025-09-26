@@ -131,39 +131,196 @@ def get_query_distribution(total_queries: int, use_cache: bool = True) -> Dict[s
     return calculate_query_distribution(total_queries)
 
 
-def get_plan_filtered_distribution(total_queries: int, plan: str = "free") -> Dict[str, int]:
+def get_user_intent_distribution(total_queries: int, user_intent: List[str]) -> Dict[str, int]:
     """
-    Get query distribution filtered by subscription plan.
+    Get query distribution based on user-specified intents.
+    Distributes queries evenly across specified intent types.
     
     Args:
         total_queries: Total number of queries to generate
-        plan: Subscription plan ('free' or 'paid')
+        user_intent: List of intent types to generate queries for
         
     Returns:
-        Dict with query count per intent category based on plan
+        Dict with query count per intent category
         
     Examples:
-        Free plan (k=30): {"informational": 15, "awareness": 15}
-        Paid plan (k=30): {"navigational": 5, "informational": 5, "commercial": 5, 
-                          "transactional": 5, "awareness": 5, "consideration": 5}
+        user_intent=['informational', 'commercial'] (k=30): 
+        {"informational": 15, "commercial": 15, others: 0}
     """
-    if plan == "free":
-        # Free plan: only informational and awareness intents
-        if total_queries < 2:
-            raise ValueError("Minimum 2 queries required for free plan (one per allowed intent category)")
+    if not user_intent:
+        raise ValueError("user_intent list cannot be empty")
+    
+    # Initialize all intents to 0
+    all_intents = ["navigational", "informational", "commercial", "transactional", "awareness", "consideration"]
+    distribution = {intent: 0 for intent in all_intents}
+    
+    # Distribute queries evenly across specified intents
+    queries_per_intent = total_queries // len(user_intent)
+    remaining_queries = total_queries % len(user_intent)
+    
+    for i, intent in enumerate(user_intent):
+        distribution[intent] = queries_per_intent
+        # Distribute remaining queries to first few intents
+        if i < remaining_queries:
+            distribution[intent] += 1
+    
+    return distribution
+
+
+def analyze_intent_coverage(queries: List[Dict], user_intent: List[str]) -> Dict:
+    """
+    Analyze what intents are covered by provided queries vs requested intents.
+    
+    Args:
+        queries: List of query dictionaries with 'intent' field
+        user_intent: List of requested intent types
         
-        # Split queries evenly between informational and awareness
-        informational_count = total_queries // 2
-        awareness_count = total_queries - informational_count  # Handle odd numbers
+    Returns:
+        Dict with coverage analysis including missing intents and distribution
+    """
+    # Count intents in provided queries
+    provided_intent_counts = {}
+    for query in queries:
+        intent = query.get('intent', '').lower()
+        provided_intent_counts[intent] = provided_intent_counts.get(intent, 0) + 1
+    
+    # Identify missing intents
+    provided_intents = set(provided_intent_counts.keys())
+    requested_intents = set(user_intent)
+    missing_intents = requested_intents - provided_intents
+    
+    # Calculate coverage stats
+    total_provided = len(queries)
+    coverage_percentage = len(provided_intents & requested_intents) / len(requested_intents) * 100 if requested_intents else 100
+    
+    return {
+        "provided_intent_counts": provided_intent_counts,
+        "requested_intents": list(requested_intents),
+        "missing_intents": list(missing_intents),
+        "covered_intents": list(provided_intents & requested_intents),
+        "total_provided_queries": total_provided,
+        "coverage_percentage": round(coverage_percentage, 1),
+        "needs_generation": len(missing_intents) > 0
+    }
+
+
+def calculate_missing_intent_distribution(missing_intents: List[str], remaining_k: int) -> Dict[str, int]:
+    """
+    Calculate how to distribute remaining queries across missing intents.
+    
+    Args:
+        missing_intents: List of intent types that need queries generated
+        remaining_k: Number of additional queries to generate
         
+    Returns:
+        Dict with query count per missing intent
+    """
+    if not missing_intents or remaining_k <= 0:
+        return {}
+    
+    # Initialize all intents to 0
+    all_intents = ["navigational", "informational", "commercial", "transactional", "awareness", "consideration"]
+    distribution = {intent: 0 for intent in all_intents}
+    
+    # Distribute remaining queries evenly across missing intents
+    queries_per_intent = remaining_k // len(missing_intents)
+    extra_queries = remaining_k % len(missing_intents)
+    
+    for i, intent in enumerate(missing_intents):
+        distribution[intent] = queries_per_intent
+        # Distribute extra queries to first few intents
+        if i < extra_queries:
+            distribution[intent] += 1
+    
+    return distribution
+
+
+def get_smart_query_distribution(total_queries: int, 
+                                user_intent: List[str] = None, 
+                                provided_queries: List[Dict] = None) -> Dict:
+    """
+    Get smart query distribution that handles provided queries + user_intent combinations.
+    
+    Args:
+        total_queries: Target total number of queries (k parameter)
+        user_intent: User-specified intent types
+        provided_queries: Pre-defined queries from user
+        
+    Returns:
+        Dict with distribution info and generation strategy
+    """
+    # Case 1: Both provided queries and user_intent (HYBRID MODE)
+    if provided_queries and user_intent:
+        coverage = analyze_intent_coverage(provided_queries, user_intent)
+        
+        if coverage["needs_generation"]:
+            # Calculate how many more queries to generate
+            remaining_k = max(0, total_queries - coverage["total_provided_queries"])
+            missing_distribution = calculate_missing_intent_distribution(
+                coverage["missing_intents"], remaining_k
+            )
+            
+            return {
+                "mode": "hybrid",
+                "provided_queries": len(provided_queries),
+                "needs_generation": remaining_k,
+                "missing_intents": coverage["missing_intents"],
+                "generation_distribution": missing_distribution,
+                "coverage_analysis": coverage,
+                "final_total": len(provided_queries) + remaining_k
+            }
+        else:
+            # All requested intents are covered
+            return {
+                "mode": "provided_only",
+                "provided_queries": len(provided_queries),
+                "needs_generation": 0,
+                "coverage_analysis": coverage,
+                "final_total": len(provided_queries)
+            }
+    
+    # Case 2: Only provided queries (use as-is, maybe generate more if k > provided)
+    elif provided_queries and not user_intent:
+        if len(provided_queries) < total_queries:
+            additional_needed = total_queries - len(provided_queries)
+            # Use all intent types for additional queries
+            additional_distribution = get_query_distribution(additional_needed)
+            
+            return {
+                "mode": "provided_plus_all",
+                "provided_queries": len(provided_queries),
+                "needs_generation": additional_needed,
+                "generation_distribution": additional_distribution,
+                "final_total": total_queries
+            }
+        else:
+            return {
+                "mode": "provided_only",
+                "provided_queries": len(provided_queries),
+                "needs_generation": 0,
+                "final_total": len(provided_queries)
+            }
+    
+    # Case 3: Only user_intent (existing behavior)
+    elif user_intent and not provided_queries:
+        distribution = get_user_intent_distribution(total_queries, user_intent)
         return {
-            "navigational": 0,
-            "informational": informational_count,
-            "commercial": 0,
-            "transactional": 0,
-            "awareness": awareness_count,
-            "consideration": 0
+            "mode": "user_intent_only",
+            "provided_queries": 0,
+            "needs_generation": total_queries,
+            "generation_distribution": distribution,
+            "final_total": total_queries
         }
+    
+    # Case 4: Neither (all intent types generation)
     else:
-        # Paid plan: use existing distribution across all intent types
-        return get_query_distribution(total_queries)
+        distribution = get_query_distribution(total_queries)
+        return {
+            "mode": "all_intents",
+            "provided_queries": 0,
+            "needs_generation": total_queries,
+            "generation_distribution": distribution,
+            "final_total": total_queries
+        }
+
+

@@ -159,22 +159,124 @@ Choose between:
 - Higher visibility doesn't guarantee sales, but indicates stronger AI discoverability
 - The system tests specific question types and may not cover all possible customer queries
 
+## System Architecture
+
+### Technology Stack
+
+**Backend Framework**
+- **FastAPI**: High-performance Python web framework for the API
+- **Pydantic**: Data validation and settings management
+- **Asyncio**: Asynchronous programming for concurrent operations
+
+**AI and ML Services**
+- **OpenAI GPT-4o-mini**: Fast query generation and citation analysis
+- **Google Gemini 2.5**: Brand profiling and answer generation
+- **Perplexity AI Sonar**: Search-based response generation
+- **LangChain**: AI workflow orchestration and prompt management
+
+**Vector Database and Search**
+- **Pinecone**: Vector database for persistent content storage
+- **OpenAI Embeddings**: Text-to-vector conversion for semantic search
+- **FAISS**: Local vector search capabilities
+
+**Web Crawling and Content Processing**
+- **Beautiful Soup**: HTML parsing and content extraction
+- **aiohttp**: Asynchronous HTTP client for concurrent web requests
+- **html2text**: HTML to markdown conversion
+- **Sitemap discovery**: Automated website structure analysis
+
+**Performance and Reliability**
+- **Robust Session Manager**: Multi-strategy download system with fallback
+- **Rate Limiting**: Token bucket algorithms for API compliance
+- **Connection Pooling**: Optimized HTTP connection management
+- **Progressive Concurrency**: Adaptive scaling based on network conditions
+
+### System Components
+
+#### 1. **Content Indexing Pipeline**
+```
+Website URL → Sitemap Discovery → Content Crawling → 
+Text Extraction → Embedding Generation → Vector Storage
+```
+
+#### 2. **Query Generation System**
+```
+Brand Profiling → Intent Analysis → Parallel Generation → 
+Query Validation → Distribution Balancing
+```
+
+#### 3. **Context Retrieval Engine**
+```
+Query Input → Vector Search → Content Retrieval → 
+Session Management → Result Assembly
+```
+
+#### 4. **LLM Analysis Pipeline**
+```
+Query + Context → Concurrent LLM Calls → Response Collection → 
+Citation Detection → Visibility Calculation
+```
+
+### Performance Optimizations
+
+**Parallel Processing**
+- Concurrent query generation by intent type (4x speed improvement)
+- Parallel LLM calls across all providers
+- Batch vector store operations with controlled concurrency
+
+**Smart Caching**
+- Pinecone namespace detection to avoid re-indexing
+- Query context caching to eliminate duplicate API calls
+- Connection pooling for reduced latency
+
+**Adaptive Scaling**
+- Progressive concurrency reduction for stability
+- Automatic fallback strategies for failed downloads
+- Rate limiting with exponential backoff
+
+### Configuration and Deployment
+
+**Environment Variables**
+- API keys for all AI services
+- Pinecone configuration (index, environment)
+- Concurrency limits and timeout settings
+
+**Docker Support**
+- Containerized deployment with docker-compose
+- Environment-specific configuration
+- Scalable architecture for high-volume usage
+
+**Monitoring and Logging**
+- Comprehensive timing breakdowns for performance analysis
+- Detailed error logging with request ID tracking
+- Real-time progress updates via Azure Web PubSub
+
 ## Technical Requirements
 
 ### Supported Content Types
 - Standard websites with HTML content
 - Product pages with structured information
 - Sites with accessible sitemaps
+- JSON-LD structured data
+- Meta tags and schema markup
 
-### AI Services Used
-- OpenAI GPT models for analysis and question generation
-- Google Gemini for brand research and response generation
-- Perplexity AI for search-based responses
+### AI Services Integration
+- **OpenAI GPT-4o-mini**: Query generation, citation analysis
+- **Google Gemini 2.5-Flash**: Brand profiling, response generation
+- **Perplexity AI Sonar**: Search-enhanced responses
+- **Custom prompts**: Optimized for natural citation patterns
+
+### Performance Specifications
+- **Concurrent Limits**: 25 downloads, 50 OpenAI requests, 15 Gemini requests
+- **Vector Operations**: 15-query batches for optimal Pinecone performance
+- **Session Recovery**: 4-strategy fallback system for 99%+ reliability
+- **Response Times**: 15-60 seconds typical, scales with query count
 
 ### Processing Time
-- Website analysis: 5-15 minutes depending on site size
-- Product analysis: 2-5 minutes
-- Time varies based on number of questions generated and API response times
+- **Small Analysis** (k=6, free plan): 15-30 seconds
+- **Medium Analysis** (k=30, paid plan): 30-60 seconds  
+- **Large Analysis** (k=100, paid plan): 60-120 seconds
+- **Time varies** based on website size, query complexity, and API response times
 
 ## Best Practices
 
