@@ -14,6 +14,9 @@ load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
+# Global semaphore to limit concurrent Pinecone queries (prevents overwhelming the API)
+PINECONE_QUERY_SEMAPHORE = asyncio.Semaphore(10)
+
 
 def is_url(text: str) -> bool:
     """
@@ -47,29 +50,43 @@ async def retrieve_queries_context(queries: Queries, retriever, content_preloade
     """
     retrieved = []
     for query in queries.queries:
-        # Use retriever - it now has built-in session recovery if it's ResilientPineconeRetriever
-        context = await retriever.ainvoke(query.query)
+        # Use retriever with retry logic for session closure errors
+        max_retries = 3
+        context = None
+        for attempt in range(max_retries):
+            try:
+                context = await retriever.ainvoke(query.query)
+                break
+            except Exception as e:
+                if "Session is closed" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Session closed for query '{query.query[:50]}...', retrying (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(2.0 * (attempt + 1))
+                    continue
+                else:
+                    logger.error(f"Failed to retrieve context for query after {attempt + 1} attempts: {str(e)}")
+                    raise
         
-        if content_preloaded:
-            # Check if documents already have full content
-            full_docs = []
-            for doc in context:
-                if is_url(doc.page_content):
-                    # Document contains URL, need to load content
+        # Smart content loading: handle both URL-only and pre-loaded content
+        full_docs = []
+        for doc in context:
+            if is_url(doc.page_content):
+                # Case 1: page_content is URL - need to load content
+                if content_preloaded:
                     loader = WebBaseLoader(doc.page_content)
                     loaded = loader.load()
                     full_docs.extend(loaded)
                 else:
-                    # Document already has full page content
-                    full_docs.append(doc)
-        else:
-            # Legacy behavior: documents contain URLs, need to load web pages
-            loaded_pages = [doc.page_content for doc in context]
-            loaders = [WebBaseLoader(page) for page in loaded_pages]
-            full_docs = []
-            for loader in loaders:
-                docs = loader.load()
-                full_docs.extend(docs)
+                    loader = WebBaseLoader(doc.page_content)
+                    loaded = loader.load()
+                    full_docs.extend(loaded)
+            elif 'source' in doc.metadata and is_url(doc.metadata['source']):
+                # Case 2: URL in metadata - need to load content
+                loader = WebBaseLoader(doc.metadata['source'])
+                loaded = loader.load()
+                full_docs.extend(loaded)
+            else:
+                # Case 3: Document already has full content - use as-is
+                full_docs.append(doc)
         
         retrieved.append({
             "query": query,
@@ -353,22 +370,61 @@ async def retrieve_queries_context_concurrent(queries: Queries, retriever, conte
     async def process_query_batch(batch, batch_idx):
         """Process a batch of queries concurrently"""
         logger.info(f"📦 Processing vector batch {batch_idx + 1}/{len(query_batches)} ({len(batch)} queries)")
-        
-        # Execute all queries in this batch concurrently
-        batch_tasks = [retriever.ainvoke(query.query) for query in batch]
+
+        # Execute all queries in this batch concurrently with error handling
+        async def safe_invoke(query_item):
+            """Safely invoke retriever with retry on session closure and rate limiting"""
+            # Use semaphore to limit concurrent Pinecone queries
+            async with PINECONE_QUERY_SEMAPHORE:
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        return await retriever.ainvoke(query_item.query)
+                    except Exception as e:
+                        if "Session is closed" in str(e) and attempt < max_retries - 1:
+                            logger.warning(f"Session closed for query '{query_item.query[:50]}...', retrying (attempt {attempt + 1}/{max_retries})")
+                            await asyncio.sleep(2.0 * (attempt + 1))  # Exponential backoff
+                            continue
+                        else:
+                            logger.error(f"Failed to retrieve context for query after {attempt + 1} attempts: {str(e)}")
+                            raise
+
+        batch_tasks = [safe_invoke(query) for query in batch]
         batch_results = await asyncio.gather(*batch_tasks)
         
         # Process results and collect URLs
         batch_urls = set()
         for query, context_docs in zip(batch, batch_results):
             query_contexts[query.query] = context_docs  # Cache for later use
-            
+
+            # Debug: Log what we're getting from vector store
+            if context_docs and batch_idx == 0:  # Only log first batch to avoid spam
+                logger.info(f"📝 Debug - First document from vector store:")
+                logger.info(f"   page_content preview: {context_docs[0].page_content[:200] if context_docs else 'NO DOCS'}")
+                logger.info(f"   metadata: {context_docs[0].metadata if context_docs else 'NO DOCS'}")
+                logger.info(f"   is_url check: {is_url(context_docs[0].page_content) if context_docs else 'N/A'}")
+
             for doc in context_docs:
+                # Handle two cases:
+                # 1. page_content is a URL (URL-only indexing)
+                # 2. page_content is full content (content-based indexing)
+
                 if is_url(doc.page_content):
+                    # Case 1: URL-only indexing (need to download)
                     url = doc.page_content.strip()
                     batch_urls.add(url)
                     all_urls.add(url)
-        
+                elif 'source' in doc.metadata and is_url(doc.metadata['source']):
+                    # Case 2: Full content indexing, URL in metadata (need to download)
+                    url = doc.metadata['source'].strip()
+                    batch_urls.add(url)
+                    all_urls.add(url)
+                else:
+                    # Case 3: Content already loaded (no download needed)
+                    # This is fine - content is already in page_content
+                    if batch_idx == 0:  # Only log first batch
+                        logger.info(f"✅ Document has full content (no URL download needed): {len(doc.page_content)} chars")
+
         logger.info(f"✅ Batch {batch_idx + 1} completed: {len(batch)} queries → {len(batch_urls)} unique URLs")
         return batch_urls
     
@@ -407,7 +463,7 @@ async def retrieve_queries_context_concurrent(queries: Queries, retriever, conte
         
         for doc in context_docs:
             if is_url(doc.page_content):
-                # Use downloaded content
+                # Case 1: page_content is URL - use downloaded content
                 url = doc.page_content.strip()
                 if url in url_to_content:
                     full_docs.append(url_to_content[url])
@@ -417,8 +473,19 @@ async def retrieve_queries_context_concurrent(queries: Queries, retriever, conte
                         page_content="Content not available",
                         metadata={"source": doc.page_content, "error": "Download failed"}
                     ))
+            elif 'source' in doc.metadata and is_url(doc.metadata['source']):
+                # Case 2: URL in metadata - use downloaded content
+                url = doc.metadata['source'].strip()
+                if url in url_to_content:
+                    full_docs.append(url_to_content[url])
+                else:
+                    # Fallback to placeholder
+                    full_docs.append(Document(
+                        page_content="Content not available",
+                        metadata={"source": doc.metadata['source'], "error": "Download failed"}
+                    ))
             else:
-                # Document already has full content
+                # Case 3: Document already has full content - use as-is
                 full_docs.append(doc)
         
         retrieved.append({

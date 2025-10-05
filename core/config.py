@@ -52,8 +52,13 @@ class BatchConfig:
     
     # API-specific concurrency limits for LLM calls
     MAX_CONCURRENT_OPENAI_REQUESTS = 50    # Conservative limit for OpenAI (500/min rate limit)
-    MAX_CONCURRENT_GEMINI_REQUESTS = 15    # Conservative limit for Gemini (60/min rate limit)  
-    MAX_CONCURRENT_PERPLEXITY_REQUESTS = 8 # Conservative limit for Perplexity (20/min rate limit)
+    MAX_CONCURRENT_GEMINI_REQUESTS = 15    # Conservative limit for Gemini (60/min rate limit)
+    MAX_CONCURRENT_PERPLEXITY_REQUESTS = 8 # Conservative limit for Perplexity (varies by tier)
+
+    # Perplexity tier-specific rate limits (requests per minute)
+    # Tier 0: 50 req/min, Tier 1+: higher limits
+    # Set via environment variable: PERPLEXITY_RPM (default: 50 for tier 0)
+    PERPLEXITY_RPM = 50  # Can be overridden via env var
     
     # Retry configuration
     MAX_RETRIES = 3
@@ -81,10 +86,10 @@ class PineconeConfig:
     # Namespace configuration
     NAMESPACE_PREFIX = "brand-"
     
-    # Connection settings
-    MAX_KEEPALIVE_CONNECTIONS = 0  # Disable keep-alive to prevent session issues
-    MAX_CONNECTIONS = 1
-    KEEPALIVE_EXPIRY = 0.0
+    # Connection settings (optimized for concurrent async operations)
+    MAX_KEEPALIVE_CONNECTIONS = 10  # Allow connection reuse for better performance
+    MAX_CONNECTIONS = 20  # Support concurrent queries without blocking
+    KEEPALIVE_EXPIRY = 300.0  # Keep connections alive for 5 minutes
     
 
 # API Server Configuration

@@ -79,7 +79,15 @@ AUDIENCE / ICP: {audience_description}  // e.g., "urban professionals; mid-price
 LOCALES : {locales}                      // e.g., ["en-US", "fr-FR", "ar-MA"]
 BRAND SUMMARY : {brand_summary}
 BRAND PRODUCTS SUMMARY : {brand_products}
-CUSTOM QUERY INSTRUCTIONS: {custom_query_instructions}    // Additional requirements or constraints for query generation 
+CUSTOM QUERY INSTRUCTIONS: {custom_query_instructions}    // Additional requirements or constraints for query generation
+
+CUSTOM INSTRUCTIONS USAGE:
+- If custom instructions specify focus areas, prioritize those aspects in query generation
+- If custom instructions mention brand visibility targets (e.g., "aim for 30-50% visibility"), adjust expected_brand_relevance accordingly:
+  * More "low" relevance queries = lower visibility (generic category queries)
+  * More "high" relevance queries = higher visibility (specific need/brand-trigger queries)
+- Custom instructions can also specify query types, personas, or regional focus
+- Always respect the custom instructions if provided 
 
 QUALITY BAR
 - Queries must align with PRODUCT_CATEGORIES and the ICP’s goals, constraints, and language.

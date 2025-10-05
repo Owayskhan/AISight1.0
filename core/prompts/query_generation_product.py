@@ -24,11 +24,22 @@ Each query MUST be classified into exactly one of these six intent types:
 - "consideration": Active evaluation against alternatives, decision-making queries
 
 STRICT CONSTRAINTS
-1) Do NOT mention the brand name explicitly in the queries - refer to the product type instead.
-2) Generate realistic queries that users would actually ask AI assistants.
-3) Cover different personas and use cases relevant to the target audience.
-4) Each query must be unique - no paraphrasing or duplicates.
-5) Keep queries natural and conversational, not keyword-stuffed.
+1) CRITICAL: Generate a MIX of branded and non-branded queries:
+   - 40% NON-BRANDED: Generic queries about the product TYPE without mentioning the brand name
+     Examples: "best [product type] for [use case]", "how to choose [product type]", "[product type] buying guide"
+   - 60% BRANDED: Queries that explicitly mention the product name
+     Examples: "where to buy [product name]", "[product name] review", "[product name] vs [competitor]"
+
+2) Non-branded queries should focus on:
+   - Product category education and comparison
+   - Generic features, style, comfort, durability questions
+   - General buying guides and recommendations
+   - Use case matching without brand mention
+
+3) Generate realistic queries that users would actually ask AI assistants.
+4) Cover different personas and use cases relevant to the target audience.
+5) Each query must be unique - no paraphrasing or duplicates.
+6) Keep queries natural and conversational, not keyword-stuffed.
 
 DIVERSITY REQUIREMENTS
 - Vary personas: novice | enthusiast | pro | budget_shopper | eco_conscious | gift_buyer | accessibility_needs | parent
@@ -36,30 +47,32 @@ DIVERSITY REQUIREMENTS
 - Cover different aspects: features, pricing, alternatives, compatibility, maintenance
 - Include realistic constraints and considerations for the target audience
 
-QUERY EXAMPLES BY INTENT:
+QUERY EXAMPLES BY INTENT (MIX OF BRANDED AND NON-BRANDED):
 
-Awareness:
-- "What are the key features of [product type]?"
-- "How does [product type] work?"
-- "What problems does [product type] solve?"
+Awareness (mostly non-branded):
+- "What are the key features of [product type]?" [NON-BRANDED]
+- "How does [product type] work?" [NON-BRANDED]
+- "What problems does [product type] solve?" [NON-BRANDED]
+- "What is [product name] and what makes it unique?" [BRANDED]
 
-Consideration:
-- "How does [product type] compare to [alternative product]?"
-- "Is [product type] worth the price?"
-- "What are the pros and cons of [product type]?"
-- "Is [product type] suitable for [specific use case]?"
+Consideration (mix):
+- "Best [product type] for [use case]?" [NON-BRANDED]
+- "How to choose the right [product type]" [NON-BRANDED]
+- "[product name] vs [competitor name]" [BRANDED]
+- "[product name] review and rating" [BRANDED]
+- "Is [product name] worth the price?" [BRANDED]
 
-Transactional:
-- "Where can I buy [product type] online?"
-- "Are there any discounts available for [product type]?"
-- "What's the return policy for [product type]?"
-- "Does [product type] come with a warranty?"
+Transactional (mostly branded):
+- "Where can I buy [product name] online?" [BRANDED]
+- "Are there any discounts for [product name]?" [BRANDED]
+- "Best deals on [product type]" [NON-BRANDED]
+- "[product name] return policy" [BRANDED]
 
-Information:
-- "How to set up [product type]?"
-- "What are the dimensions and weight of [product type]?"
-- "Is [product type] compatible with [other item]?"
-- "How to maintain [product type]?"
+Informational (mix):
+- "How to style [product type] for different occasions" [NON-BRANDED]
+- "What to look for when buying [product type]" [NON-BRANDED]
+- "How to care for [product name]" [BRANDED]
+- "[product name] sizing guide" [BRANDED]
 
 QUANTITY AND DISTRIBUTION
 - Generate EXACTLY {k} queries total, distributed as follows:
@@ -79,7 +92,7 @@ OUTPUT FORMAT
     "sub_intent": "optional short tag (e.g., 'compare', 'features', 'pricing', 'compatibility')",
     "persona": "novice|enthusiast|pro|budget_shopper|eco_conscious|gift_buyer|accessibility_needs|parent",
     "category": "product-specific",
-    "expected_brand_relevance": "high",
+    "expected_brand_relevance": "high|medium|low",  // Use "high" for branded queries, "low" or "medium" for non-branded
     "locale": "en-US",
     "notes": "brief reason why this query is asked"
   }}
@@ -93,11 +106,20 @@ AUDIENCE_DESCRIPTION: {audience_description}
 K: {k}
 CUSTOM_QUERY_INSTRUCTIONS: {custom_query_instructions}    // Additional requirements or constraints for query generation
 
+CUSTOM INSTRUCTIONS USAGE:
+- If custom instructions specify a branded/non-branded ratio, USE THAT instead of the default 40/60 split
+- If custom instructions request more non-branded queries, adjust accordingly (e.g., "80% non-branded, 20% branded")
+- Custom instructions can also specify focus areas (e.g., "focus on comfort and style", "emphasize durability")
+- Always respect the custom instructions if provided
+
 QUALITY BAR
 - Queries must be realistic and reflect how users actually search for product information.
-- Each query should be specific enough to potentially return information about the product.
+- MAINTAIN 40/60 split: ~40% non-branded (generic product type) and ~60% branded (mention product name).
+- Non-branded queries should focus on product category, style, comfort, features without brand mention.
+- Branded queries should explicitly use the product name for reviews, comparisons, purchase info.
 - Mix different levels of product knowledge (beginner to expert).
 - Include practical concerns like compatibility, maintenance, and value.
+- Set "expected_brand_relevance" to "low" for non-branded queries and "high" for branded queries.
 
 RETURN
 Only the JSON array, nothing else.

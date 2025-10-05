@@ -42,47 +42,63 @@ async def find_sitemap_url_async(website_url: str) -> str:
         
         logger.info(f"Searching for sitemap at {website_url}")
         
-        # Common sitemap locations
+        # Common sitemap locations (prioritized order - robots.txt first, then common paths)
         sitemap_paths = [
+            '/robots.txt',  # Check robots.txt first - often has sitemap URL
             '/sitemap.xml',
             '/sitemap_index.xml',
             '/sitemap-index.xml',
             '/sitemaps.xml',
             '/sitemap/',
+            '/sitemap/sitemap.xml',
+            '/sitemap/index.xml',
+            '/product-sitemap.xml',
+            '/en/sitemap.xml',
+            '/us/sitemap.xml',
+            '/us_en/sitemap.xml',
             '/sitemap.txt',
-            '/sitemap.xml.gz',
-            '/robots.txt'
+            '/sitemap.xml.gz'
         ]
-        
+
         timeout = aiohttp.ClientTimeout(total=15)
-        
+
+        # Headers to appear as legitimate bot
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; AISightBot/1.0; +https://github.com/anthropics/aisight)',
+            'Accept': 'application/xml,text/xml,application/rss+xml,text/html,*/*',
+            'Accept-Language': 'en-US,en;q=0.9'
+        }
+
         async def check_path(session: aiohttp.ClientSession, path: str) -> Optional[str]:
             sitemap_url = urljoin(website_url, path)
-            
+
             try:
-                async def _make_request():
-                    async with session.get(sitemap_url) as response:
-                        if response.status == 200:
-                            content = await response.text()
-                            
-                            if path == '/robots.txt':
-                                for line in content.splitlines():
-                                    if line.lower().startswith('sitemap:'):
-                                        return line.split(':', 1)[1].strip()
-                            else:
-                                try:
-                                    ET.fromstring(content.encode('utf-8'))
-                                    return sitemap_url
-                                except ET.ParseError:
-                                    pass
-                    return None
-                
-                # Use rate limiting
-                await wait_for_rate_limit("web_scraping", tokens=1)
-                return await _make_request()
-            except Exception:
+                async with session.get(sitemap_url, headers=headers) as response:
+                    if response.status == 200:
+                        content = await response.text()
+
+                        if path == '/robots.txt':
+                            for line in content.splitlines():
+                                if line.lower().startswith('sitemap:'):
+                                    sitemap_from_robots = line.split(':', 1)[1].strip()
+                                    logger.info(f"Found sitemap in robots.txt: {sitemap_from_robots}")
+                                    return sitemap_from_robots
+                        else:
+                            try:
+                                ET.fromstring(content.encode('utf-8'))
+                                logger.debug(f"Valid sitemap found at: {sitemap_url}")
+                                return sitemap_url
+                            except ET.ParseError:
+                                logger.debug(f"Path {path} returned 200 but not valid XML")
+                                pass
                 return None
-        
+            except Exception as e:
+                logger.debug(f"Path {path} failed: {type(e).__name__}: {str(e)[:100]}")
+                return None
+
+        # Apply rate limiting once for all requests (not per request)
+        await wait_for_rate_limit("web_scraping", tokens=len(sitemap_paths))
+
         async with aiohttp.ClientSession(timeout=timeout) as session:
             tasks = [check_path(session, path) for path in sitemap_paths]
             results = await asyncio.gather(*tasks, return_exceptions=True)

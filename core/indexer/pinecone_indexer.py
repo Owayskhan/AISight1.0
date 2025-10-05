@@ -488,16 +488,16 @@ class PineconeIndexManager:
             return False
 
 
-# Global instance for reuse
-_pinecone_manager = None
-
-
+# Create fresh instance per request to avoid shared state issues
 def get_pinecone_manager() -> PineconeIndexManager:
-    """Get global Pinecone manager instance"""
-    global _pinecone_manager
-    if _pinecone_manager is None:
-        _pinecone_manager = PineconeIndexManager()
-    return _pinecone_manager
+    """
+    Create a new Pinecone manager instance per request.
+
+    Note: We intentionally create fresh instances instead of using a singleton
+    to avoid race conditions in concurrent async operations. Each request gets
+    its own isolated manager instance, eliminating shared mutable state issues.
+    """
+    return PineconeIndexManager()
 
 
 async def namespace_exists(brand_name: str) -> bool:

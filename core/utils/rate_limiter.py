@@ -341,18 +341,22 @@ def configure_rate_limits():
         strategy=RateLimitStrategy.TOKEN_BUCKET
     ))
     
-    # Perplexity rate limits
+    # Perplexity rate limits (tier-specific, configurable via env)
+    import os
+    from core.config import BatchConfig
+    perplexity_rpm = int(os.getenv('PERPLEXITY_RPM', BatchConfig.PERPLEXITY_RPM))
+
     _global_rate_limiter.configure_api('perplexity', RateLimitConfig(
-        requests_per_minute=20,
-        requests_per_hour=100,
-        burst_size=10,
+        requests_per_minute=perplexity_rpm,  # Tier-specific (default: 50 for tier 0)
+        requests_per_hour=None,  # No hourly limit (only minute limit matters)
+        burst_size=min(perplexity_rpm // 5, 10),  # Conservative burst: 20% of RPM, max 10
         strategy=RateLimitStrategy.TOKEN_BUCKET
     ))
     
-    # Web scraping rate limits (polite crawling)
+    # Web scraping rate limits (reasonable for sitemap discovery and content loading)
     _global_rate_limiter.configure_api('web_scraping', RateLimitConfig(
-        requests_per_minute=30,
-        burst_size=5,
+        requests_per_minute=100,  # Increased for faster sitemap discovery
+        burst_size=15,  # Allow burst for checking multiple sitemap paths
         strategy=RateLimitStrategy.TOKEN_BUCKET
     ))
     

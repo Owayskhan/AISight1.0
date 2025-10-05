@@ -326,7 +326,7 @@ async def analyze_citation_count(request: CitationCountRequest):
                 error = handle_api_error(e, service="product_processing")
                 logger.error(f"❌ Product processing failed: {error.message}")
                 if progress_sender:
-                    progress_sender.send_error(error.message, "product_processing", error.status_code)
+                    progress_sender.send_error(error.message, "product_processing", status_code=error.status_code)
                 raise error
             
         else:
@@ -376,7 +376,7 @@ async def analyze_citation_count(request: CitationCountRequest):
                         error = handle_api_error(e, service="web_scraping")
                         logger.error(f"❌ Sitemap discovery failed: {error.message}")
                         if progress_sender:
-                            progress_sender.send_error(error.message, "sitemap_discovery", error.status_code)
+                            progress_sender.send_error(error.message, "sitemap_discovery", status_code=error.status_code)
                         raise error
             
             # Step 3: Smart indexing with Pinecone or FAISS fallback
@@ -413,7 +413,7 @@ async def analyze_citation_count(request: CitationCountRequest):
                 error = handle_api_error(e, service="indexing")
                 logger.error(f"❌ Sitemap processing failed: {error.message}")
                 if progress_sender:
-                    progress_sender.send_error(error.message, "sitemap_processing", error.status_code)
+                    progress_sender.send_error(error.message, "sitemap_processing", status_code=error.status_code)
                 raise error
         
         # Step 2: Handle brand profile - either use provided info or generate it
@@ -457,7 +457,7 @@ async def analyze_citation_count(request: CitationCountRequest):
                 error = handle_api_error(e, service="brand_profiling")
                 logger.error(f"❌ Brand profile generation failed: {error.message}")
                 if progress_sender:
-                    progress_sender.send_error(error.message, "brand_profiling", error.status_code)
+                    progress_sender.send_error(error.message, "brand_profiling", status_code=error.status_code)
                 raise error
         
         step_timings["brand_profiling"] = time.time() - step_start
