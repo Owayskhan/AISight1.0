@@ -1,6 +1,9 @@
 
+# Core FastAPI dependencies
+fastapi>=0.104.0
 uvicorn[standard]
 
+# AI/ML dependencies
 langchain
 langchain-openai
 langchain-google-genai
@@ -13,6 +16,8 @@ openai
 google-generativeai
 faiss-cpu
 pinecone[asyncio]
+
+# Utilities
 python-dotenv
 requests
 lxml
@@ -22,7 +27,7 @@ beautifulsoup4
 azure-messaging-webpubsubservice
 aiohttp
 
-typing-extensions>=4.8.0
-pydantic>=2.0.0
-pydantic-core>=2.0.0
-fastapi>=0.104.0
+# CRITICAL: Pin these to force correct versions
+typing-extensions>=4.9.0  # Changed from 4.8.0
+pydantic>=2.0.0,<2.13.0   # Pin upper bound
+pydantic-core>=2.0.0,<2.42.0  # Pin upper bound
