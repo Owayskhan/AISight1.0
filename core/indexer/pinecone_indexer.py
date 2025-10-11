@@ -35,24 +35,26 @@ class ResilientPineconeRetriever:
         self._retriever = None
         self._vector_store = None
     
-    async def _get_retriever(self):
+    async def _get_retriever(self, force_recreate=False):
         """Get or create the underlying retriever with caching"""
-        if self._retriever is None or self._vector_store is None:
+        if self._retriever is None or self._vector_store is None or force_recreate:
+            logger.debug(f"Creating {'fresh' if force_recreate else 'new'} retriever for brand '{self.brand_name}'")
+
             # Manually create the retriever to avoid recursion
             namespace = sanitize_brand_name(self.brand_name)
-            
-            if not self.manager._index:
+
+            if not self.manager._index or force_recreate:
                 await self.manager.initialize_index()
-            
+
             embeddings = self.manager.get_embeddings(self.openai_api_key)
-            
+
             # Cache the vector store to avoid recreating it every time
             self._vector_store = PineconeVectorStore(
                 index=self.manager._index,
                 embedding=embeddings,
                 namespace=namespace
             )
-            
+
             self._retriever = self._vector_store.as_retriever(
                 search_type=self.search_type,
                 search_kwargs={"k": self.k}
@@ -64,18 +66,29 @@ class ResilientPineconeRetriever:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                retriever = await self._get_retriever()
+                # Force recreate on retry attempts to ensure fresh connection
+                force_recreate = attempt > 0
+                retriever = await self._get_retriever(force_recreate=force_recreate)
                 return await retriever.ainvoke(query)
             except Exception as e:
-                if "Session is closed" in str(e) and attempt < max_retries - 1:
-                    logger.warning(f"Session closed during retrieval, recreating retriever (attempt {attempt + 1}/{max_retries})")
+                error_msg = str(e)
+                if ("Session is closed" in error_msg or "Connection" in error_msg) and attempt < max_retries - 1:
+                    logger.warning(f"🔄 Session/connection error during retrieval: {error_msg[:100]}")
+                    logger.warning(f"   Recreating retriever (attempt {attempt + 1}/{max_retries})")
+
                     # Reset both the manager and local retriever/vector store
                     self.manager._reset_connection()
                     self._retriever = None
                     self._vector_store = None
-                    await asyncio.sleep(1.0 * (attempt + 1))
+
+                    # Exponential backoff
+                    wait_time = 2.0 * (attempt + 1)
+                    logger.info(f"   Waiting {wait_time}s before retry...")
+                    await asyncio.sleep(wait_time)
                     continue
                 else:
+                    if attempt == max_retries - 1:
+                        logger.error(f"❌ Failed after {max_retries} attempts: {error_msg}")
                     raise
 
 load_dotenv(override=True)
@@ -108,53 +121,72 @@ class PineconeIndexManager:
         self._initialized = False
     
     def _get_pinecone_client(self):
-        """Get or create Pinecone client - create fresh each time to avoid session issues"""
-        # Instead of caching, create a fresh client each time to avoid session issues
-        # This is less efficient but more reliable with async operations
+        """Get or create Pinecone client - ALWAYS creates fresh client to avoid session issues"""
+        # CRITICAL: Always create a fresh client - never cache it
+        # This ensures each operation gets a new HTTP session, preventing "Session is closed" errors
         import httpx
-        from core.config import TimeoutConfig, PineconeConfig
+        from core.config import TimeoutConfig
+
+        logger.debug("Creating fresh Pinecone client (no caching)")
+
+        # Create a fresh Pinecone client with NO connection pooling
+        # Using httpx.Client() instead of default to have full control
         return Pinecone(
             api_key=self.api_key,
-            # Disable connection pooling entirely to avoid session issues
+            # Critical: Create a fresh httpx client with aggressive timeouts and no keep-alive
             httpx_client=httpx.Client(
-                timeout=TimeoutConfig.PINECONE_OPERATION_TIMEOUT,
+                timeout=httpx.Timeout(
+                    timeout=TimeoutConfig.PINECONE_OPERATION_TIMEOUT,
+                    connect=10.0,
+                    read=30.0,
+                    write=30.0,
+                    pool=5.0
+                ),
                 limits=httpx.Limits(
-                    max_keepalive_connections=PineconeConfig.MAX_KEEPALIVE_CONNECTIONS,   # Disable keep-alive
-                    max_connections=PineconeConfig.MAX_CONNECTIONS,             # Single connection
-                    keepalive_expiry=PineconeConfig.KEEPALIVE_EXPIRY          # No keep-alive
-                )
+                    max_keepalive_connections=0,  # CRITICAL: Disable keep-alive completely
+                    max_connections=10,            # Limit total connections
+                    keepalive_expiry=0             # CRITICAL: No keep-alive expiry
+                ),
+                follow_redirects=True,
+                verify=True
             )
         )
     
     def _reset_connection(self):
         """Reset Pinecone connection - useful when session is closed"""
+        logger.info("🔄 Resetting Pinecone connection due to session closure")
         self._pc = None
         self._index = None
+        self._embeddings = None  # Also reset embeddings to ensure fresh connection
         self._initialized = False
     
     async def initialize_index(self) -> None:
         """Initialize or create Pinecone index if it doesn't exist"""
-        if self._initialized:
-            return
-            
+        # CRITICAL: Don't check _initialized flag - always allow reinitialization
+        # This is necessary because we reset connections on session errors
+
         try:
             # Run synchronous Pinecone operations in thread pool
             loop = asyncio.get_event_loop()
-            
-            # Check if index exists with retry
+
+            logger.debug(f"Initializing Pinecone index: {self.index_name}")
+
+            # Check if index exists with retry - use fresh client each time
             async def check_indexes():
+                pc = self._get_pinecone_client()  # Fresh client
                 return await loop.run_in_executor(
-                    None, lambda: [index.name for index in self._get_pinecone_client().list_indexes()]
+                    None, lambda: [index.name for index in pc.list_indexes()]
                 )
             existing_indexes = await retry_async(check_indexes)
             
             if self.index_name not in existing_indexes:
                 logger.info(f"Creating new Pinecone index: {self.index_name}")
-                
+
                 # Create index with serverless spec (recommended for new projects)
+                pc = self._get_pinecone_client()  # Fresh client for creation
                 await loop.run_in_executor(
-                    None, 
-                    lambda: self._get_pinecone_client().create_index(
+                    None,
+                    lambda: pc.create_index(
                         name=self.index_name,
                         dimension=self.embedding_dim,
                         metric="cosine",
@@ -164,18 +196,19 @@ class PineconeIndexManager:
                         )
                     )
                 )
-                
+
                 # Wait for index to be ready
                 logger.info("Waiting for index to be ready...")
                 await asyncio.sleep(10)  # Use async sleep instead of blocking sleep
-            
-            # Connect to index with retry
+
+            # Connect to index with retry - ALWAYS use fresh client
             async def connect_index():
+                pc = self._get_pinecone_client()  # Fresh client for connection
                 return await loop.run_in_executor(
-                    None, lambda: self._get_pinecone_client().Index(self.index_name)
+                    None, lambda: pc.Index(self.index_name)
                 )
             self._index = await retry_async(connect_index)
-            logger.info(f"Connected to Pinecone index: {self.index_name}")
+            logger.info(f"✅ Connected to Pinecone index: {self.index_name}")
             self._initialized = True
             
         except Exception as e:

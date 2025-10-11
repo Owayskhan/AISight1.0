@@ -16,6 +16,7 @@ cdenv/
 # IDEs
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
@@ -26,14 +27,24 @@ Thumbs.db
 # Git
 .git/
 .gitignore
+.github/
+
+# Environment variables (use Docker env or secrets)
+.env
+.env.local
+.env.*
 
 # Docker
 .dockerignore
-Dockerfile*
-docker-compose*
+Dockerfile
+docker-compose.yml
 
-# Logs
-*.log
+# Azure deployment files (not needed in container)
+.azure/
+.deployment
+startup.sh
+runtime.txt
+web.config
 
 # Documentation (not needed in container)
 docs/
@@ -42,13 +53,12 @@ docs/
 # Test files
 tests/
 test_*.py
+*_test.py
 
-# Examples and notebooks
-examples/
-notebooks/
-*.ipynb
+# Example files
+citation_example.json
+sample_api_response.json
+test_inputs_*.json
 
-# Temporary files
-*.tmp
-*.temp
-.cache/
+# Logs
+*.log

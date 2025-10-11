@@ -176,10 +176,21 @@ class ValidationConfig:
     VALID_URL_SCHEMES = ["http", "https"]
 
 
+# Firecrawl Configuration
+class FirecrawlConfig:
+    """Firecrawl API configuration for website crawling"""
+    DEFAULT_TIMEOUT = 30.0  # seconds
+    MAX_RETRIES = 2
+    MAP_TIMEOUT = 60.0  # seconds for map operation (can take longer)
+
+    # Enable/disable Firecrawl (fallback to traditional sitemap discovery if disabled)
+    ENABLED = True  # Set to False to use legacy sitemap discovery
+
+
 # Export all config classes for easy importing
 __all__ = [
     'ModelConfig',
-    'TimeoutConfig', 
+    'TimeoutConfig',
     'BatchConfig',
     'DelayConfig',
     'PineconeConfig',
@@ -188,5 +199,6 @@ __all__ = [
     'ContentConfig',
     'LoggingConfig',
     'DatasetConfig',
-    'ValidationConfig'
+    'ValidationConfig',
+    'FirecrawlConfig'
 ]

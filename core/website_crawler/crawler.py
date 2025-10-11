@@ -27,8 +27,74 @@ from core.utils.rate_limiter import rate_limit, wait_for_rate_limit
 
 logger = logging.getLogger(__name__)
 
+# ============================================
+# Firecrawl-based sitemap discovery (Primary Method)
+# ============================================
+
+async def get_sitemap_urls_firecrawl(website_url: str) -> List[str]:
+    """
+    Use Firecrawl API to discover all URLs on a website.
+    This is the primary method for sitemap discovery.
+
+    Args:
+        website_url: Base website URL to crawl
+
+    Returns:
+        List of discovered URLs
+
+    Raises:
+        ValueError: If FIRECRAWL_API_KEY is not set
+        Exception: If Firecrawl API call fails
+    """
+    try:
+        from firecrawl import FirecrawlApp
+        import os
+        from core.config import FirecrawlConfig
+
+        logger.info(f"🔥 Using Firecrawl to discover URLs for: {website_url}")
+
+        # Get API key from environment
+        api_key = os.getenv("FIRECRAWL_API_KEY")
+        if not api_key:
+            raise ValueError("FIRECRAWL_API_KEY not found in environment variables")
+
+        # Initialize Firecrawl app
+        app = FirecrawlApp(api_key=api_key)
+
+        # Use map() to discover all URLs on the website
+        logger.info("📡 Calling Firecrawl map() API...")
+        result = app.map(website_url)
+
+        # Extract URLs from result
+        sitemap_urls = []
+        if hasattr(result, 'links'):
+            for link in result.links:
+                if hasattr(link, 'url'):
+                    sitemap_urls.append(link.url)
+                else:
+                    sitemap_urls.append(str(link))
+        else:
+            # Fallback: try to parse result as list
+            sitemap_urls = [str(url) for url in result] if isinstance(result, list) else []
+
+        logger.info(f"✅ Firecrawl discovered {len(sitemap_urls)} URLs")
+
+        return sitemap_urls
+
+    except ImportError as e:
+        logger.error(f"❌ Firecrawl package not installed: {e}")
+        raise ValueError("firecrawl-py package is required but not installed. Run: pip install firecrawl-py")
+    except Exception as e:
+        logger.error(f"❌ Firecrawl discovery failed: {type(e).__name__}: {str(e)}")
+        raise
+
+
+# ============================================
+# Legacy sitemap discovery functions (Fallback)
+# ============================================
+
 @async_retry(retries=2, delay=1.0, max_delay=10.0)
-async def find_sitemap_url_async(website_url: str) -> str:
+async def _find_sitemap_url_async_legacy(website_url: str) -> str:
     """
     Asynchronously find the sitemap URL for a given website with error handling.
     """
@@ -119,18 +185,42 @@ async def find_sitemap_url_async(website_url: str) -> str:
             )
 
 
+async def find_sitemap_url_async(website_url: str) -> str:
+    """
+    Find sitemap URL with Firecrawl as primary method, legacy as fallback.
+    This is the main entry point for sitemap discovery.
+    """
+    from core.config import FirecrawlConfig
+
+    # Try Firecrawl first if enabled
+    if FirecrawlConfig.ENABLED:
+        try:
+            urls = await get_sitemap_urls_firecrawl(website_url)
+            if urls:
+                logger.info(f"✅ Firecrawl found {len(urls)} URLs, returning first sitemap URL")
+                # For compatibility with existing code expecting a sitemap URL,
+                # we return the base website URL since Firecrawl already gave us all URLs
+                return website_url  # Signal that we used Firecrawl successfully
+        except Exception as e:
+            logger.warning(f"⚠️ Firecrawl failed ({type(e).__name__}), falling back to legacy sitemap discovery")
+
+    # Fallback to legacy method
+    logger.info("📋 Using legacy sitemap discovery...")
+    return await _find_sitemap_url_async_legacy(website_url)
+
+
 def find_sitemap_url(website_url: str) -> str:
     """
     Synchronous wrapper for find_sitemap_url_async.
     Dynamically find the sitemap URL for a given website.
     """
-    try:
-        return asyncio.run(find_sitemap_url_async(website_url))
-    except Exception as e:
-        # Handle the async version's exceptions in sync context
-        raise
-    # For backward compatibility, fall back to the original synchronous implementation
-    # if async version fails
+    return asyncio.run(find_sitemap_url_async(website_url))
+
+
+def _find_sitemap_url_legacy(website_url: str) -> str:
+    """
+    LEGACY: Synchronous sitemap discovery (fallback only).
+    """
     try:
         # Ensure URL has proper scheme
         if not urlparse(website_url).scheme:
@@ -171,57 +261,112 @@ def find_sitemap_url(website_url: str) -> str:
         logger.error(f"Error finding sitemap: {e}")
         raise
 
-def load_sitemap_documents(sitemap_url: str):
-    sitemap = get_sitemap_urls(sitemap_url)
+async def load_sitemap_documents(website_url: str):
+    """
+    Load sitemap documents using Firecrawl (primary) or legacy XML parsing (fallback).
+
+    Args:
+        website_url: Base website URL or sitemap URL
+
+    Returns:
+        List of Document objects with URLs
+    """
+    from core.config import FirecrawlConfig
+
+    # Try Firecrawl first if enabled
+    if FirecrawlConfig.ENABLED:
+        try:
+            sitemap = await get_sitemap_urls_firecrawl(website_url)
+            logger.info(f"✅ Firecrawl: Creating {len(sitemap)} documents")
+
+            sitemap_docs = []
+            for url in sitemap:
+                doc = Document(
+                    page_content=url, metadata={"source": url, "method": "firecrawl"}
+                )
+                sitemap_docs.append(doc)
+
+            return sitemap_docs
+
+        except Exception as e:
+            logger.warning(f"⚠️ Firecrawl failed, falling back to legacy XML sitemap parsing: {e}")
+
+    # Fallback to legacy method
+    logger.info("📋 Using legacy XML sitemap parsing...")
+    sitemap = _get_sitemap_urls_legacy(website_url)
 
     sitemap_docs = []
     for url in sitemap:
         doc = Document(
-            page_content=url, metadata={"source": url}
+            page_content=url, metadata={"source": url, "method": "legacy"}
         )
         sitemap_docs.append(doc)
-    
+
     return sitemap_docs
 
-async def load_sitemap_documents_parallel(sitemap_url: str, max_concurrent: int = 50):
+async def load_sitemap_documents_parallel(website_url: str, max_concurrent: int = 50):
     """
-    Load sitemap documents with parallel processing for better performance
-    
+    Load sitemap documents with parallel processing using Firecrawl (primary) or legacy XML parsing (fallback).
+
     Args:
-        sitemap_url: URL of the sitemap
+        website_url: Base website URL or sitemap URL
         max_concurrent: Maximum concurrent URL processing
-    
+
     Returns:
         List of Document objects
     """
+    from core.config import FirecrawlConfig
+
+    # Try Firecrawl first if enabled
+    if FirecrawlConfig.ENABLED:
+        try:
+            logger.info(f"🔥 Using Firecrawl for parallel document loading...")
+            sitemap_urls = await get_sitemap_urls_firecrawl(website_url)
+
+            sitemap_docs = []
+            for url in sitemap_urls:
+                doc = Document(
+                    page_content=url,
+                    metadata={"source": url, "method": "firecrawl"}
+                )
+                sitemap_docs.append(doc)
+
+            logger.info(f"✅ Firecrawl parallel loading: {len(sitemap_docs)} documents created")
+            return sitemap_docs
+
+        except Exception as e:
+            logger.warning(f"⚠️ Firecrawl failed, falling back to legacy parallel XML parsing: {e}")
+
+    # Fallback to legacy parallel method
+    logger.info("📋 Using legacy parallel XML sitemap parsing...")
     import asyncio
     import aiohttp
     from xml.etree import ElementTree as ET
-    
-    async def get_sitemap_urls_async(url: str, session: aiohttp.ClientSession):
-        """Async version of sitemap URL extraction"""
+
+    async def _get_sitemap_urls_async_legacy(url: str, session: aiohttp.ClientSession):
+        """LEGACY: Async version of sitemap URL extraction"""
         try:
             async with session.get(url, timeout=10) as response:
                 content = await response.read()
-                
+
                 # Parse the XML
                 root = ET.fromstring(content)
                 namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
                 urls = []
                 seen_urls = set()
-                
+
                 for url_element in root.findall('.//ns:loc', namespace):
                     url_text = url_element.text.strip() if url_element.text else ""
                     if url_text and url_text not in seen_urls:
                         seen_urls.add(url_text)
                         urls.append(url_text)
-                
+
                 logger.info(f"Found {len(urls)} unique URLs in sitemap (deduplicated from {len(root.findall('.//ns:loc', namespace))} total)")
                 return urls
         except Exception as e:
             logger.error(f"Error loading sitemap {url}: {str(e)}")
             # Fallback to synchronous method
-            return get_sitemap_urls(url)
+            return _get_sitemap_urls_legacy(url)
     
     async def create_document_async(url: str):
         """Async document creation (though this is fast, keeping pattern for consistency)"""
@@ -233,8 +378,8 @@ async def load_sitemap_documents_parallel(sitemap_url: str, max_concurrent: int 
     # Use aiohttp for async HTTP requests
     timeout = aiohttp.ClientTimeout(total=30)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        # Get URLs from sitemap asynchronously
-        sitemap_urls = await get_sitemap_urls_async(sitemap_url, session)
+        # Get URLs from sitemap asynchronously (legacy method)
+        sitemap_urls = await _get_sitemap_urls_async_legacy(website_url, session)
         
         # Create semaphore for controlled concurrency
         semaphore = asyncio.Semaphore(max_concurrent)
@@ -427,7 +572,11 @@ async def load_single_product_document(product_url: str, openai_api_key: str,
                 operation="product_page_processing"
             )
 
-def get_sitemap_urls(url):
+def _get_sitemap_urls_legacy(url):
+    """
+    LEGACY: Parse sitemap XML to extract URLs (synchronous fallback method).
+    Only used when Firecrawl fails or is disabled.
+    """
     response = requests.get(url)
 
     # Parse the XML
@@ -442,9 +591,13 @@ def get_sitemap_urls(url):
         if url_text and url_text not in seen_urls:
             seen_urls.add(url_text)
             urls.append(url_text)
-    
+
     logger.info(f"Found {len(urls)} unique URLs in sitemap (deduplicated from {len(root.findall('.//ns:loc', namespace))} total)")
     return urls
+
+
+# Maintain backward compatibility
+get_sitemap_urls = _get_sitemap_urls_legacy  # Alias for legacy code
 
 
 
