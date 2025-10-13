@@ -24,31 +24,36 @@ async def retry_async(func, max_retries=3, delay=1.0):
 
 
 class ResilientPineconeRetriever:
-    """Wrapper around Pinecone retriever that can handle session closures"""
-    
-    def __init__(self, manager, brand_name, openai_api_key, k=4, search_type="similarity"):
+    """Wrapper around Pinecone retriever that can handle session closures with per-query fresh connections"""
+
+    def __init__(self, manager, brand_name, openai_api_key, k=4, search_type="similarity", per_query_fresh=True):
         self.manager = manager
         self.brand_name = brand_name
         self.openai_api_key = openai_api_key
         self.k = k
         self.search_type = search_type
+        self.per_query_fresh = per_query_fresh  # NEW: Force fresh connection per query
         self._retriever = None
         self._vector_store = None
-    
+
     async def _get_retriever(self, force_recreate=False):
         """Get or create the underlying retriever with caching"""
-        if self._retriever is None or self._vector_store is None or force_recreate:
-            logger.debug(f"Creating {'fresh' if force_recreate else 'new'} retriever for brand '{self.brand_name}'")
+        # If per_query_fresh is enabled, ALWAYS recreate to avoid session reuse
+        should_recreate = force_recreate or self.per_query_fresh or self._retriever is None or self._vector_store is None
+
+        if should_recreate:
+            logger.debug(f"Creating {'fresh' if force_recreate or self.per_query_fresh else 'new'} retriever for brand '{self.brand_name}'")
 
             # Manually create the retriever to avoid recursion
             namespace = sanitize_brand_name(self.brand_name)
 
             if not self.manager._index or force_recreate:
-                await self.manager.initialize_index()
+                # Use single_use=True for completely isolated client
+                await self.manager.initialize_index(single_use=True)
 
             embeddings = self.manager.get_embeddings(self.openai_api_key)
 
-            # Cache the vector store to avoid recreating it every time
+            # Create fresh vector store with isolated connection
             self._vector_store = PineconeVectorStore(
                 index=self.manager._index,
                 embedding=embeddings,
@@ -60,10 +65,12 @@ class ResilientPineconeRetriever:
                 search_kwargs={"k": self.k}
             )
         return self._retriever
-    
+
     async def ainvoke(self, query):
-        """Invoke retriever with automatic session recovery"""
+        """Invoke retriever with automatic session recovery and random jitter"""
+        import random
         max_retries = 3
+
         for attempt in range(max_retries):
             try:
                 # Force recreate on retry attempts to ensure fresh connection
@@ -81,9 +88,11 @@ class ResilientPineconeRetriever:
                     self._retriever = None
                     self._vector_store = None
 
-                    # Exponential backoff
-                    wait_time = 2.0 * (attempt + 1)
-                    logger.info(f"   Waiting {wait_time}s before retry...")
+                    # Exponential backoff with random jitter to prevent retry storms
+                    base_wait = 2.0 * (attempt + 1)
+                    jitter = random.uniform(0, 0.5)  # Random 0-500ms jitter
+                    wait_time = base_wait + jitter
+                    logger.info(f"   Waiting {wait_time:.2f}s before retry...")
                     await asyncio.sleep(wait_time)
                     continue
                 else:
@@ -120,21 +129,42 @@ class PineconeIndexManager:
         self._embeddings = None
         self._initialized = False
     
-    def _get_pinecone_client(self):
-        """Get or create Pinecone client - ALWAYS creates fresh client to avoid session issues"""
+    def _get_pinecone_client(self, single_use=False):
+        """
+        Get or create Pinecone client - ALWAYS creates fresh client to avoid session issues
+
+        Args:
+            single_use: If True, creates an even more isolated client for single operations
+        """
         # CRITICAL: Always create a fresh client - never cache it
         # This ensures each operation gets a new HTTP session, preventing "Session is closed" errors
         import httpx
         from core.config import TimeoutConfig
 
-        logger.debug("Creating fresh Pinecone client (no caching)")
+        logger.debug(f"Creating fresh Pinecone client (single_use={single_use})")
 
-        # Create a fresh Pinecone client with NO connection pooling
-        # Using httpx.Client() instead of default to have full control
-        return Pinecone(
-            api_key=self.api_key,
-            # Critical: Create a fresh httpx client with aggressive timeouts and no keep-alive
-            httpx_client=httpx.Client(
+        # For single-use operations (like individual queries), use even more aggressive isolation
+        if single_use:
+            # Create a completely isolated httpx client with NO connection pooling whatsoever
+            httpx_client = httpx.Client(
+                timeout=httpx.Timeout(
+                    timeout=TimeoutConfig.PINECONE_OPERATION_TIMEOUT,
+                    connect=10.0,
+                    read=30.0,
+                    write=30.0,
+                    pool=5.0
+                ),
+                limits=httpx.Limits(
+                    max_keepalive_connections=0,  # CRITICAL: No keep-alive
+                    max_connections=1,             # Only 1 connection (no pooling)
+                    keepalive_expiry=0             # No keep-alive expiry
+                ),
+                follow_redirects=True,
+                verify=True
+            )
+        else:
+            # For batch operations, allow minimal connection reuse
+            httpx_client = httpx.Client(
                 timeout=httpx.Timeout(
                     timeout=TimeoutConfig.PINECONE_OPERATION_TIMEOUT,
                     connect=10.0,
@@ -144,13 +174,15 @@ class PineconeIndexManager:
                 ),
                 limits=httpx.Limits(
                     max_keepalive_connections=0,  # CRITICAL: Disable keep-alive completely
-                    max_connections=10,            # Limit total connections
+                    max_connections=5,             # Limit total connections
                     keepalive_expiry=0             # CRITICAL: No keep-alive expiry
                 ),
                 follow_redirects=True,
                 verify=True
             )
-        )
+
+        # Create a fresh Pinecone client with custom httpx client
+        return Pinecone(api_key=self.api_key, httpx_client=httpx_client)
     
     def _reset_connection(self):
         """Reset Pinecone connection - useful when session is closed"""
@@ -160,8 +192,13 @@ class PineconeIndexManager:
         self._embeddings = None  # Also reset embeddings to ensure fresh connection
         self._initialized = False
     
-    async def initialize_index(self) -> None:
-        """Initialize or create Pinecone index if it doesn't exist"""
+    async def initialize_index(self, single_use=False) -> None:
+        """
+        Initialize or create Pinecone index if it doesn't exist
+
+        Args:
+            single_use: If True, creates more isolated client for single operations
+        """
         # CRITICAL: Don't check _initialized flag - always allow reinitialization
         # This is necessary because we reset connections on session errors
 
@@ -169,21 +206,21 @@ class PineconeIndexManager:
             # Run synchronous Pinecone operations in thread pool
             loop = asyncio.get_event_loop()
 
-            logger.debug(f"Initializing Pinecone index: {self.index_name}")
+            logger.debug(f"Initializing Pinecone index: {self.index_name} (single_use={single_use})")
 
             # Check if index exists with retry - use fresh client each time
             async def check_indexes():
-                pc = self._get_pinecone_client()  # Fresh client
+                pc = self._get_pinecone_client(single_use=single_use)  # Fresh client
                 return await loop.run_in_executor(
                     None, lambda: [index.name for index in pc.list_indexes()]
                 )
             existing_indexes = await retry_async(check_indexes)
-            
+
             if self.index_name not in existing_indexes:
                 logger.info(f"Creating new Pinecone index: {self.index_name}")
 
                 # Create index with serverless spec (recommended for new projects)
-                pc = self._get_pinecone_client()  # Fresh client for creation
+                pc = self._get_pinecone_client(single_use=False)  # Use batch client for creation
                 await loop.run_in_executor(
                     None,
                     lambda: pc.create_index(
@@ -203,14 +240,14 @@ class PineconeIndexManager:
 
             # Connect to index with retry - ALWAYS use fresh client
             async def connect_index():
-                pc = self._get_pinecone_client()  # Fresh client for connection
+                pc = self._get_pinecone_client(single_use=single_use)  # Fresh client for connection
                 return await loop.run_in_executor(
                     None, lambda: pc.Index(self.index_name)
                 )
             self._index = await retry_async(connect_index)
             logger.info(f"✅ Connected to Pinecone index: {self.index_name}")
             self._initialized = True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize Pinecone index: {str(e)}")
             self._initialized = False
@@ -418,49 +455,52 @@ class PineconeIndexManager:
         brand_name: str,
         openai_api_key: str,
         k: int = 4,
-        search_type: str = "similarity"
+        search_type: str = "similarity",
+        per_query_fresh: bool = True
     ):
         """
         Get a retriever for an existing brand namespace
-        
+
         Args:
             brand_name: Original brand name
             openai_api_key: OpenAI API key for embeddings
             k: Number of documents to retrieve
             search_type: Type of search to perform
-            
+            per_query_fresh: If True, creates fresh connection per query (default: True to prevent session errors)
+
         Returns:
             Retriever instance
         """
         try:
             if not self._index:
                 await self.initialize_index()
-            
+
             namespace = sanitize_brand_name(brand_name)
-            
+
             # Verify namespace exists
             if not await self.namespace_exists(brand_name):
                 raise ValueError(f"Namespace for brand '{brand_name}' does not exist")
-            
+
             # Get embeddings instance
             embeddings = self.get_embeddings(openai_api_key)
-            
+
             # Create vector store with existing namespace
             vector_store = PineconeVectorStore(
                 index=self._index,
                 embedding=embeddings,
                 namespace=namespace
             )
-            
-            logger.info(f"Retrieved vector store for brand '{brand_name}' from namespace '{namespace}'")
-            
+
+            logger.info(f"Retrieved vector store for brand '{brand_name}' from namespace '{namespace}' (per_query_fresh={per_query_fresh})")
+
             # Return resilient retriever wrapper instead of direct retriever
             return ResilientPineconeRetriever(
                 manager=self,
                 brand_name=brand_name,
                 openai_api_key=openai_api_key,
                 k=k,
-                search_type=search_type
+                search_type=search_type,
+                per_query_fresh=per_query_fresh  # Enable fresh connections per query
             )
             
         except Exception as e:

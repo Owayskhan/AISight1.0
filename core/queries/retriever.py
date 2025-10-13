@@ -15,7 +15,8 @@ load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 
 # Global semaphore to limit concurrent Pinecone queries (prevents overwhelming the API)
-PINECONE_QUERY_SEMAPHORE = asyncio.Semaphore(10)
+# Reduced from 10 to 5 to prevent HTTP session exhaustion and "Session is closed" errors
+PINECONE_QUERY_SEMAPHORE = asyncio.Semaphore(5)
 
 
 def is_url(text: str) -> bool:
@@ -48,6 +49,7 @@ async def retrieve_queries_context(queries: Queries, retriever, content_preloade
     Returns:
         List of dicts containing query and context documents
     """
+    import random
     retrieved = []
     for query in queries.queries:
         # Use retriever with retry logic for session closure errors
@@ -60,7 +62,10 @@ async def retrieve_queries_context(queries: Queries, retriever, content_preloade
             except Exception as e:
                 if "Session is closed" in str(e) and attempt < max_retries - 1:
                     logger.warning(f"Session closed for query '{query.query[:50]}...', retrying (attempt {attempt + 1}/{max_retries})")
-                    await asyncio.sleep(2.0 * (attempt + 1))
+                    # Exponential backoff with random jitter
+                    base_wait = 2.0 * (attempt + 1)
+                    jitter = random.uniform(0, 0.5)
+                    await asyncio.sleep(base_wait + jitter)
                     continue
                 else:
                     logger.error(f"Failed to retrieve context for query after {attempt + 1} attempts: {str(e)}")
@@ -373,7 +378,8 @@ async def retrieve_queries_context_concurrent(queries: Queries, retriever, conte
 
         # Execute all queries in this batch concurrently with error handling
         async def safe_invoke(query_item):
-            """Safely invoke retriever with retry on session closure and rate limiting"""
+            """Safely invoke retriever with retry on session closure, rate limiting, and random jitter"""
+            import random
             # Use semaphore to limit concurrent Pinecone queries
             async with PINECONE_QUERY_SEMAPHORE:
                 max_retries = 3
@@ -383,7 +389,11 @@ async def retrieve_queries_context_concurrent(queries: Queries, retriever, conte
                     except Exception as e:
                         if "Session is closed" in str(e) and attempt < max_retries - 1:
                             logger.warning(f"Session closed for query '{query_item.query[:50]}...', retrying (attempt {attempt + 1}/{max_retries})")
-                            await asyncio.sleep(2.0 * (attempt + 1))  # Exponential backoff
+                            # Exponential backoff with random jitter to prevent retry storms
+                            base_wait = 2.0 * (attempt + 1)
+                            jitter = random.uniform(0, 0.5)  # Random 0-500ms jitter
+                            wait_time = base_wait + jitter
+                            await asyncio.sleep(wait_time)
                             continue
                         else:
                             logger.error(f"Failed to retrieve context for query after {attempt + 1} attempts: {str(e)}")
