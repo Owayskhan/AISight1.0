@@ -341,106 +341,106 @@ class RobustSessionManager:
         return success_count
 
 
-async def retrieve_queries_context_concurrent(queries: Queries, retriever, content_preloaded=False, max_concurrent=5):
+async def retrieve_queries_context_concurrent(queries: Queries, retriever, content_preloaded=False, max_concurrent=5, pinecone_manager=None, brand_name=None, openai_api_key=None, k=4):
     """
     Ultra-robust version with comprehensive session management and progressive fallback strategies
-    
+
     Args:
         queries: Queries object containing list of queries
-        retriever: Vector store retriever
+        retriever: Vector store retriever (DEPRECATED - will be ignored if pinecone_manager is provided)
         content_preloaded: If True, uses pre-loaded content
         max_concurrent: Maximum concurrent web page downloads
-    
+        pinecone_manager: PineconeIndexManager instance (required for per-query fresh retrievers)
+        brand_name: Brand name (required if pinecone_manager is provided)
+        openai_api_key: OpenAI API key (required if pinecone_manager is provided)
+        k: Number of documents to retrieve per query
+
     Returns:
         List of dicts containing query and context documents
     """
     if content_preloaded:
         # Use the original function for pre-loaded content
         return await retrieve_queries_context(queries, retriever, content_preloaded=True)
-    
-    logger.info(f"🔍 Starting robust parallel retrieval for {len(queries.queries)} queries...")
+
+    logger.info(f"🔍 Starting sequential retrieval for {len(queries.queries)} queries...")
     vector_start_time = asyncio.get_event_loop().time()
-    
-    # Step 1: Execute all vector store queries in parallel with controlled batching
+
+    # Step 1: Execute vector store queries sequentially (one at a time)
+    # This avoids "Session is closed" errors that occur with batching
     all_urls: Set[str] = set()
     query_contexts: Dict[str, List] = {}  # Cache vector store results
-    
-    # Batch queries to avoid overwhelming Pinecone
-    from core.config import BatchConfig
-    batch_size = BatchConfig.VECTOR_QUERY_BATCH_SIZE
-    query_batches = [queries.queries[i:i + batch_size] for i in range(0, len(queries.queries), batch_size)]
-    
-    logger.info(f"🚀 Executing vector store queries in {len(query_batches)} parallel batches of up to {batch_size}")
-    
-    async def process_query_batch(batch, batch_idx):
-        """Process a batch of queries concurrently"""
-        logger.info(f"📦 Processing vector batch {batch_idx + 1}/{len(query_batches)} ({len(batch)} queries)")
 
-        # Execute all queries in this batch concurrently with error handling
-        async def safe_invoke(query_item):
-            """Safely invoke retriever with retry on session closure, rate limiting, and random jitter"""
-            import random
-            # Use semaphore to limit concurrent Pinecone queries
-            async with PINECONE_QUERY_SEMAPHORE:
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        return await retriever.ainvoke(query_item.query)
-                    except Exception as e:
-                        if "Session is closed" in str(e) and attempt < max_retries - 1:
-                            logger.warning(f"Session closed for query '{query_item.query[:50]}...', retrying (attempt {attempt + 1}/{max_retries})")
-                            # Exponential backoff with random jitter to prevent retry storms
-                            base_wait = 2.0 * (attempt + 1)
-                            jitter = random.uniform(0, 0.5)  # Random 0-500ms jitter
-                            wait_time = base_wait + jitter
-                            await asyncio.sleep(wait_time)
-                            continue
-                        else:
-                            logger.error(f"Failed to retrieve context for query after {attempt + 1} attempts: {str(e)}")
-                            raise
+    logger.info(f"🚀 Executing vector store queries sequentially with FRESH retriever per query")
 
-        batch_tasks = [safe_invoke(query) for query in batch]
-        batch_results = await asyncio.gather(*batch_tasks)
-        
-        # Process results and collect URLs
-        batch_urls = set()
-        for query, context_docs in zip(batch, batch_results):
-            query_contexts[query.query] = context_docs  # Cache for later use
+    for idx, query_item in enumerate(queries.queries):
+        logger.info(f"📦 Processing query {idx + 1}/{len(queries.queries)}: {query_item.query[:80]}...")
 
-            # Debug: Log what we're getting from vector store
-            if context_docs and batch_idx == 0:  # Only log first batch to avoid spam
-                logger.info(f"📝 Debug - First document from vector store:")
-                logger.info(f"   page_content preview: {context_docs[0].page_content[:200] if context_docs else 'NO DOCS'}")
-                logger.info(f"   metadata: {context_docs[0].metadata if context_docs else 'NO DOCS'}")
-                logger.info(f"   is_url check: {is_url(context_docs[0].page_content) if context_docs else 'N/A'}")
+        # CRITICAL FIX: Create a completely fresh retriever for each query
+        # This ensures no session reuse and eliminates "Session is closed" errors
+        if pinecone_manager and brand_name and openai_api_key:
+            try:
+                # Get a brand new retriever with fresh embeddings and fresh Pinecone connection
+                fresh_retriever = await pinecone_manager.get_retriever(
+                    brand_name=brand_name,
+                    openai_api_key=openai_api_key,
+                    k=k,
+                    per_query_fresh=True  # Force fresh connection
+                )
+                logger.debug(f"   ✅ Created fresh retriever for query {idx + 1}")
+            except Exception as e:
+                logger.error(f"Failed to create fresh retriever: {str(e)}")
+                fresh_retriever = retriever  # Fallback to provided retriever
+        else:
+            fresh_retriever = retriever  # Use provided retriever if manager not available
 
-            for doc in context_docs:
-                # Handle two cases:
-                # 1. page_content is a URL (URL-only indexing)
-                # 2. page_content is full content (content-based indexing)
+        # Simple sequential retrieval with single retry
+        max_retries = 2
+        context_docs = None
 
-                if is_url(doc.page_content):
-                    # Case 1: URL-only indexing (need to download)
-                    url = doc.page_content.strip()
-                    batch_urls.add(url)
-                    all_urls.add(url)
-                elif 'source' in doc.metadata and is_url(doc.metadata['source']):
-                    # Case 2: Full content indexing, URL in metadata (need to download)
-                    url = doc.metadata['source'].strip()
-                    batch_urls.add(url)
-                    all_urls.add(url)
+        for attempt in range(max_retries):
+            try:
+                # Use fresh retriever - one query at a time
+                context_docs = await fresh_retriever.ainvoke(query_item.query)
+                logger.info(f"✅ Retrieved {len(context_docs)} documents")
+                break  # Success
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"⚠️ Retrieval failed (attempt {attempt + 1}/{max_retries}): {str(e)[:100]}")
+                    await asyncio.sleep(1.0)  # Simple 1 second delay
+                    continue
                 else:
-                    # Case 3: Content already loaded (no download needed)
-                    # This is fine - content is already in page_content
-                    if batch_idx == 0:  # Only log first batch
-                        logger.info(f"✅ Document has full content (no URL download needed): {len(doc.page_content)} chars")
+                    logger.error(f"❌ Failed to retrieve context after {max_retries} attempts: {str(e)}")
+                    raise
 
-        logger.info(f"✅ Batch {batch_idx + 1} completed: {len(batch)} queries → {len(batch_urls)} unique URLs")
-        return batch_urls
-    
-    # Process all batches concurrently
-    batch_tasks = [process_query_batch(batch, i) for i, batch in enumerate(query_batches)]
-    await asyncio.gather(*batch_tasks)
+        # Cache results for later assembly
+        query_contexts[query_item.query] = context_docs
+
+        # Debug: Log what we're getting from vector store (first query only)
+        if context_docs and idx == 0:
+            logger.info(f"📝 Debug - First document from vector store:")
+            logger.info(f"   page_content preview: {context_docs[0].page_content[:200]}")
+            logger.info(f"   metadata: {context_docs[0].metadata}")
+            logger.info(f"   is_url check: {is_url(context_docs[0].page_content)}")
+
+        # Collect URLs from documents
+        for doc in context_docs:
+            # Handle two cases:
+            # 1. page_content is a URL (URL-only indexing)
+            # 2. page_content is full content (content-based indexing)
+
+            if is_url(doc.page_content):
+                # Case 1: URL-only indexing (need to download)
+                url = doc.page_content.strip()
+                all_urls.add(url)
+            elif 'source' in doc.metadata and is_url(doc.metadata['source']):
+                # Case 2: Full content indexing, URL in metadata (need to download)
+                url = doc.metadata['source'].strip()
+                all_urls.add(url)
+            else:
+                # Case 3: Content already loaded (no download needed)
+                if idx == 0:  # Only log first query
+                    logger.info(f"✅ Document has full content (no URL download needed): {len(doc.page_content)} chars")
     
     vector_duration = asyncio.get_event_loop().time() - vector_start_time
     logger.info(f"⚡ Vector store queries completed in {vector_duration:.2f}s ({len(queries.queries)/vector_duration:.1f} queries/sec)")

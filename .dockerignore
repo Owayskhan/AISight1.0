@@ -62,3 +62,11 @@ test_inputs_*.json
 
 # Logs
 *.log
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Playwright
+.playwright/
+ms-playwright/

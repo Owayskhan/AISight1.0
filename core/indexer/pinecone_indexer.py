@@ -36,6 +36,19 @@ class ResilientPineconeRetriever:
         self._retriever = None
         self._vector_store = None
 
+    async def _create_fresh_index_object(self):
+        """Create a completely fresh Pinecone index object with new HTTP client"""
+        loop = asyncio.get_event_loop()
+
+        # Create a brand new Pinecone client with fresh HTTP client
+        pc = self.manager._get_pinecone_client(single_use=True)
+
+        # Get a fresh index object
+        index = await loop.run_in_executor(
+            None, lambda: pc.Index(self.manager.index_name)
+        )
+        return index
+
     async def _get_retriever(self, force_recreate=False):
         """Get or create the underlying retriever with caching"""
         # If per_query_fresh is enabled, ALWAYS recreate to avoid session reuse
@@ -47,15 +60,22 @@ class ResilientPineconeRetriever:
             # Manually create the retriever to avoid recursion
             namespace = sanitize_brand_name(self.brand_name)
 
-            if not self.manager._index or force_recreate:
-                # Use single_use=True for completely isolated client
-                await self.manager.initialize_index(single_use=True)
+            # CRITICAL FIX: Create a completely fresh index object with new HTTP client
+            # This bypasses any cached index objects that might have stale sessions
+            if self.per_query_fresh or force_recreate:
+                logger.debug("   Creating fresh index object with new HTTP client")
+                fresh_index = await self._create_fresh_index_object()
+            else:
+                # Use cached index if not forcing fresh
+                if not self.manager._index:
+                    await self.manager.initialize_index(single_use=True)
+                fresh_index = self.manager._index
 
             embeddings = self.manager.get_embeddings(self.openai_api_key)
 
-            # Create fresh vector store with isolated connection
+            # Create fresh vector store with the fresh index
             self._vector_store = PineconeVectorStore(
-                index=self.manager._index,
+                index=fresh_index,
                 embedding=embeddings,
                 namespace=namespace
             )
@@ -98,6 +118,56 @@ class ResilientPineconeRetriever:
                 else:
                     if attempt == max_retries - 1:
                         logger.error(f"❌ Failed after {max_retries} attempts: {error_msg}")
+                    raise
+
+    async def abatch(self, queries: list, config=None, **kwargs):
+        """
+        Batch invoke retriever using Pinecone's native abatch method
+        This prevents session closure errors by using a single shared connection
+
+        Args:
+            queries: List of query strings
+            config: Optional RunnableConfig
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            List of document lists (one per query)
+        """
+        import random
+        max_retries = 3
+
+        for attempt in range(max_retries):
+            try:
+                # For batched operations, we don't force fresh connections
+                # Instead, we use a single retriever for the entire batch
+                retriever = await self._get_retriever(force_recreate=(attempt > 0))
+
+                # Delegate to the underlying retriever's abatch method
+                # This uses a single Pinecone connection for all queries
+                logger.debug(f"Calling underlying retriever.abatch() with {len(queries)} queries")
+                return await retriever.abatch(queries, config=config, **kwargs)
+
+            except Exception as e:
+                error_msg = str(e)
+                if ("Session is closed" in error_msg or "Connection" in error_msg) and attempt < max_retries - 1:
+                    logger.warning(f"🔄 Session/connection error during batch retrieval: {error_msg[:100]}")
+                    logger.warning(f"   Recreating retriever for batch (attempt {attempt + 1}/{max_retries})")
+
+                    # Reset both the manager and local retriever/vector store
+                    self.manager._reset_connection()
+                    self._retriever = None
+                    self._vector_store = None
+
+                    # Exponential backoff with random jitter
+                    base_wait = 2.0 * (attempt + 1)
+                    jitter = random.uniform(0, 0.5)
+                    wait_time = base_wait + jitter
+                    logger.info(f"   Waiting {wait_time:.2f}s before retry...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    if attempt == max_retries - 1:
+                        logger.error(f"❌ Batch retrieval failed after {max_retries} attempts: {error_msg}")
                     raise
 
 load_dotenv(override=True)
@@ -256,10 +326,22 @@ class PineconeIndexManager:
                 self._reset_connection()
             raise
     
-    def get_embeddings(self, openai_api_key: str) -> OpenAIEmbeddings:
-        """Get or create OpenAI embeddings instance"""
-        if not self._embeddings:
-            self._embeddings = OpenAIEmbeddings(
+    def get_embeddings(self, openai_api_key: str, fresh: bool = False) -> OpenAIEmbeddings:
+        """
+        Get or create OpenAI embeddings instance
+
+        Args:
+            openai_api_key: OpenAI API key
+            fresh: If True, always creates a new embeddings instance to avoid session closure issues
+
+        Returns:
+            OpenAIEmbeddings instance
+        """
+        # CRITICAL: Always create fresh embeddings to prevent "Session is closed" errors
+        # The cached embeddings object can have stale HTTP sessions
+        if fresh or not self._embeddings:
+            logger.debug(f"Creating {'fresh' if fresh else 'new'} OpenAI embeddings instance")
+            return OpenAIEmbeddings(
                 model=self.embedding_model,
                 api_key=openai_api_key
             )
@@ -456,7 +538,7 @@ class PineconeIndexManager:
         openai_api_key: str,
         k: int = 4,
         search_type: str = "similarity",
-        per_query_fresh: bool = True
+        per_query_fresh: bool = False  # Changed default to False - use direct retriever
     ):
         """
         Get a retriever for an existing brand namespace
@@ -466,10 +548,10 @@ class PineconeIndexManager:
             openai_api_key: OpenAI API key for embeddings
             k: Number of documents to retrieve
             search_type: Type of search to perform
-            per_query_fresh: If True, creates fresh connection per query (default: True to prevent session errors)
+            per_query_fresh: DEPRECATED - kept for backward compatibility, always returns direct retriever
 
         Returns:
-            Retriever instance
+            Direct PineconeVectorStore retriever instance (no wrapper)
         """
         try:
             if not self._index:
@@ -481,8 +563,9 @@ class PineconeIndexManager:
             if not await self.namespace_exists(brand_name):
                 raise ValueError(f"Namespace for brand '{brand_name}' does not exist")
 
-            # Get embeddings instance
-            embeddings = self.get_embeddings(openai_api_key)
+            # Get FRESH embeddings instance to avoid session closure issues
+            # CRITICAL: Use fresh=True to prevent reusing cached embeddings with closed HTTP sessions
+            embeddings = self.get_embeddings(openai_api_key, fresh=True)
 
             # Create vector store with existing namespace
             vector_store = PineconeVectorStore(
@@ -491,16 +574,13 @@ class PineconeIndexManager:
                 namespace=namespace
             )
 
-            logger.info(f"Retrieved vector store for brand '{brand_name}' from namespace '{namespace}' (per_query_fresh={per_query_fresh})")
+            logger.info(f"Retrieved vector store for brand '{brand_name}' from namespace '{namespace}'")
 
-            # Return resilient retriever wrapper instead of direct retriever
-            return ResilientPineconeRetriever(
-                manager=self,
-                brand_name=brand_name,
-                openai_api_key=openai_api_key,
-                k=k,
+            # Return direct retriever from Pinecone vectorstore (no wrapper)
+            # This uses LangChain's native abatch() implementation which is more stable
+            return vector_store.as_retriever(
                 search_type=search_type,
-                per_query_fresh=per_query_fresh  # Enable fresh connections per query
+                search_kwargs={"k": k}
             )
             
         except Exception as e:
@@ -512,16 +592,17 @@ class PineconeIndexManager:
                 try:
                     # Retry once after resetting connection
                     await self.initialize_index()
-                    
+
                     namespace = sanitize_brand_name(brand_name)
-                    embeddings = self.get_embeddings(openai_api_key)
-                    
+                    # CRITICAL: Use fresh embeddings on retry
+                    embeddings = self.get_embeddings(openai_api_key, fresh=True)
+
                     vector_store = PineconeVectorStore(
                         index=self._index,
                         embedding=embeddings,
                         namespace=namespace
                     )
-                    
+
                     return vector_store.as_retriever(
                         search_type=search_type,
                         search_kwargs={"k": k}

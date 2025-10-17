@@ -28,7 +28,99 @@ from core.utils.rate_limiter import rate_limit, wait_for_rate_limit
 logger = logging.getLogger(__name__)
 
 # ============================================
-# Firecrawl-based sitemap discovery (Primary Method)
+# Crawl4AI-based sitemap discovery (Primary Method)
+# ============================================
+
+async def get_sitemap_urls_crawl4ai(website_url: str) -> List[str]:
+    """
+    Use Crawl4AI to discover all URLs on a website.
+    This is the primary method for sitemap discovery.
+
+    Args:
+        website_url: Base website URL to crawl
+
+    Returns:
+        List of discovered URLs
+
+    Raises:
+        ImportError: If crawl4ai is not installed
+        Exception: If crawling fails
+    """
+    try:
+        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+        from bs4 import BeautifulSoup
+        from urllib.parse import urljoin, urlparse
+
+        logger.info(f"🕷️ Using Crawl4AI to discover URLs for: {website_url}")
+
+        # Initialize the crawler
+        crawler = AsyncWebCrawler()
+
+        # Configure the crawler
+        config = CrawlerRunConfig()
+
+        logger.info("📡 Calling Crawl4AI to fetch page...")
+
+        # Crawl the website
+        result = await crawler.arun(url=website_url, config=config)
+
+        # Extract URLs from the HTML content
+        sitemap_urls = set()  # Use set to avoid duplicates
+
+        # Get the first result (crawl4ai returns a container)
+        if result and len(result) > 0:
+            crawl_result = result[0]
+
+            # Parse HTML to extract all links
+            if hasattr(crawl_result, 'html') and crawl_result.html:
+                soup = BeautifulSoup(crawl_result.html, 'html.parser')
+
+                # Extract all anchor tags
+                for link in soup.find_all('a', href=True):
+                    href = link['href']
+
+                    # Convert relative URLs to absolute
+                    absolute_url = urljoin(website_url, href)
+
+                    # Only include URLs from the same domain
+                    parsed_base = urlparse(website_url)
+                    parsed_url = urlparse(absolute_url)
+
+                    if parsed_url.netloc == parsed_base.netloc:
+                        # Clean the URL (remove fragments)
+                        clean_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+                        if parsed_url.query:
+                            clean_url += f"?{parsed_url.query}"
+
+                        sitemap_urls.add(clean_url)
+
+                logger.info(f"✅ Crawl4AI discovered {len(sitemap_urls)} unique URLs from HTML")
+            else:
+                logger.warning("⚠️ No HTML content found in crawl result")
+        else:
+            logger.error("❌ Crawl4AI returned no results")
+            raise Exception("Crawl4AI returned empty result")
+
+        # Convert set to sorted list
+        sitemap_urls_list = sorted(list(sitemap_urls))
+
+        logger.info(f"✅ Total unique URLs discovered: {len(sitemap_urls_list)}")
+
+        # Close the crawler
+        await crawler.close()
+
+        return sitemap_urls_list
+
+    except ImportError as e:
+        logger.error(f"❌ Crawl4AI package not installed: {e}")
+        raise ValueError("crawl4ai package is required but not installed. Run: pip install crawl4ai")
+    except Exception as e:
+        logger.error(f"❌ Crawl4AI discovery failed: {type(e).__name__}: {str(e)}")
+        raise
+
+
+# ============================================
+# Firecrawl-based sitemap discovery (Deprecated - kept for fallback)
 # ============================================
 
 async def get_sitemap_urls_firecrawl(website_url: str) -> List[str]:
@@ -187,19 +279,29 @@ async def _find_sitemap_url_async_legacy(website_url: str) -> str:
 
 async def find_sitemap_url_async(website_url: str) -> str:
     """
-    Find sitemap URL with Firecrawl as primary method, legacy as fallback.
+    Find sitemap URL with Crawl4AI as primary method, Firecrawl as secondary, legacy as final fallback.
     This is the main entry point for sitemap discovery.
     """
-    from core.config import FirecrawlConfig
+    from core.config import Crawl4AIConfig, FirecrawlConfig
 
-    # Try Firecrawl first if enabled
+    # Try Crawl4AI first if enabled
+    if Crawl4AIConfig.ENABLED:
+        try:
+            urls = await get_sitemap_urls_crawl4ai(website_url)
+            if urls:
+                logger.info(f"✅ Crawl4AI found {len(urls)} URLs, returning base URL as signal")
+                # For compatibility with existing code expecting a sitemap URL,
+                # we return the base website URL since Crawl4AI already gave us all URLs
+                return website_url  # Signal that we used Crawl4AI successfully
+        except Exception as e:
+            logger.warning(f"⚠️ Crawl4AI failed ({type(e).__name__}), trying Firecrawl...")
+
+    # Try Firecrawl as secondary method if enabled
     if FirecrawlConfig.ENABLED:
         try:
             urls = await get_sitemap_urls_firecrawl(website_url)
             if urls:
-                logger.info(f"✅ Firecrawl found {len(urls)} URLs, returning first sitemap URL")
-                # For compatibility with existing code expecting a sitemap URL,
-                # we return the base website URL since Firecrawl already gave us all URLs
+                logger.info(f"✅ Firecrawl found {len(urls)} URLs, returning base URL as signal")
                 return website_url  # Signal that we used Firecrawl successfully
         except Exception as e:
             logger.warning(f"⚠️ Firecrawl failed ({type(e).__name__}), falling back to legacy sitemap discovery")
@@ -263,17 +365,99 @@ def _find_sitemap_url_legacy(website_url: str) -> str:
 
 async def load_sitemap_documents(website_url: str):
     """
-    Load sitemap documents using Firecrawl (primary) or legacy XML parsing (fallback).
+    Load sitemap documents sequentially.
+    Uses Crawl4AI for URL discovery, then LangChain WebBaseLoader for content extraction.
 
     Args:
         website_url: Base website URL or sitemap URL
 
     Returns:
-        List of Document objects with URLs
+        List of Document objects with actual page content
     """
-    from core.config import FirecrawlConfig
+    from core.config import Crawl4AIConfig, FirecrawlConfig
 
-    # Try Firecrawl first if enabled
+    # Try Crawl4AI first if enabled
+    if Crawl4AIConfig.ENABLED:
+        try:
+            sitemap = await get_sitemap_urls_crawl4ai(website_url)
+            logger.info(f"✅ Crawl4AI: Downloading content for {len(sitemap)} URLs using WebBaseLoader...")
+
+            sitemap_docs = []
+            for idx, url in enumerate(sitemap):
+                logger.info(f"📥 Downloading {idx + 1}/{len(sitemap)}: {url}")
+
+                try:
+                    # Use LangChain's WebBaseLoader for content extraction
+                    # WebBaseLoader.load() is synchronous, so run it in executor
+                    loop = asyncio.get_event_loop()
+                    loader = WebBaseLoader(url)
+                    documents = await loop.run_in_executor(None, loader.load)
+
+                    if documents and len(documents) > 0:
+                        content = documents[0].page_content
+
+                        # Validation: Ensure content is meaningful
+                        if content and len(content.strip()) > 100:
+                            doc = Document(
+                                page_content=content,  # ✅ Actual page content!
+                                metadata={
+                                    "source": url,
+                                    "method": "webbaseloader",
+                                    "content_type": "extracted_content"
+                                }
+                            )
+                        else:
+                            logger.warning(f"⚠️ Content too short from {url} ({len(content.strip()) if content else 0} chars)")
+                            doc = Document(
+                                page_content=url,
+                                metadata={
+                                    "source": url,
+                                    "method": "webbaseloader",
+                                    "content_type": "url_only",
+                                    "extraction_failed": True,
+                                    "reason": "content_too_short"
+                                }
+                            )
+                    else:
+                        # Fallback: store URL if content extraction failed
+                        logger.warning(f"⚠️ No content extracted from {url}, storing URL only")
+                        doc = Document(
+                            page_content=url,
+                            metadata={
+                                "source": url,
+                                "method": "webbaseloader",
+                                "content_type": "url_only",
+                                "extraction_failed": True
+                            }
+                        )
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to download {url}: {str(e)[:100]}")
+                    doc = Document(
+                        page_content=url,
+                        metadata={
+                            "source": url,
+                            "method": "webbaseloader",
+                            "content_type": "url_only",
+                            "error": str(e)[:200]
+                        }
+                    )
+
+                sitemap_docs.append(doc)
+
+            # Log statistics
+            successful = sum(1 for doc in sitemap_docs if doc.metadata.get("content_type") == "extracted_content")
+            failed = len(sitemap_docs) - successful
+
+            logger.info(f"✅ Content loading complete:")
+            logger.info(f"   - {successful} URLs with content extracted")
+            logger.info(f"   - {failed} URLs failed (stored as URL only)")
+
+            return sitemap_docs
+
+        except Exception as e:
+            logger.warning(f"⚠️ Crawl4AI + WebBaseLoader failed, trying Firecrawl: {e}")
+
+    # Try Firecrawl as secondary method if enabled
     if FirecrawlConfig.ENABLED:
         try:
             sitemap = await get_sitemap_urls_firecrawl(website_url)
@@ -304,20 +488,158 @@ async def load_sitemap_documents(website_url: str):
 
     return sitemap_docs
 
+async def load_url_content_crawl4ai(url: str) -> str:
+    """
+    Use Crawl4AI to download and extract the content from a single URL.
+
+    Args:
+        url: URL to download
+
+    Returns:
+        Extracted text content from the page
+    """
+    try:
+        from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+
+        crawler = AsyncWebCrawler()
+        config = CrawlerRunConfig()
+
+        # Crawl the URL
+        result = await crawler.arun(url=url, config=config)
+
+        # Extract content
+        if result and len(result) > 0:
+            crawl_result = result[0]
+
+            # Use markdown content if available, otherwise use extracted_content
+            if hasattr(crawl_result, 'markdown') and crawl_result.markdown:
+                content = crawl_result.markdown
+            elif hasattr(crawl_result, 'extracted_content') and crawl_result.extracted_content:
+                content = crawl_result.extracted_content
+            elif hasattr(crawl_result, 'html') and crawl_result.html:
+                # Fallback: extract text from HTML
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(crawl_result.html, 'html.parser')
+                content = soup.get_text(separator='\n', strip=True)
+            else:
+                content = ""
+
+            await crawler.close()
+            return content
+        else:
+            await crawler.close()
+            return ""
+
+    except Exception as e:
+        logger.warning(f"⚠️ Crawl4AI failed to load content from {url}: {str(e)[:100]}")
+        return ""
+
+
 async def load_sitemap_documents_parallel(website_url: str, max_concurrent: int = 50):
     """
-    Load sitemap documents with parallel processing using Firecrawl (primary) or legacy XML parsing (fallback).
+    Load sitemap documents with parallel processing.
+    Uses Crawl4AI for URL discovery, then LangChain WebBaseLoader for content extraction.
 
     Args:
         website_url: Base website URL or sitemap URL
         max_concurrent: Maximum concurrent URL processing
 
     Returns:
-        List of Document objects
+        List of Document objects with actual page content
     """
-    from core.config import FirecrawlConfig
+    from core.config import Crawl4AIConfig, FirecrawlConfig
 
-    # Try Firecrawl first if enabled
+    # Try Crawl4AI first if enabled
+    if Crawl4AIConfig.ENABLED:
+        try:
+            logger.info(f"🕷️ Using Crawl4AI for URL discovery...")
+            sitemap_urls = await get_sitemap_urls_crawl4ai(website_url)
+
+            logger.info(f"📥 Downloading content for {len(sitemap_urls)} URLs using WebBaseLoader...")
+
+            # Create semaphore for controlled concurrency
+            semaphore = asyncio.Semaphore(max_concurrent)
+
+            async def download_url_content(url: str) -> Document:
+                """Download content for a single URL using WebBaseLoader with semaphore control"""
+                async with semaphore:
+                    try:
+                        # Use LangChain's WebBaseLoader for reliable content extraction
+                        # WebBaseLoader.load() is synchronous, so run it in executor
+                        loop = asyncio.get_event_loop()
+                        loader = WebBaseLoader(url)
+                        documents = await loop.run_in_executor(None, loader.load)
+
+                        if documents and len(documents) > 0:
+                            # Return the document with actual content
+                            content = documents[0].page_content
+
+                            # Validation: Ensure content is meaningful (not just empty or the URL itself)
+                            if content and len(content.strip()) > 100:
+                                return Document(
+                                    page_content=content,  # ✅ Actual page content!
+                                    metadata={
+                                        "source": url,
+                                        "method": "webbaseloader",
+                                        "content_type": "extracted_content"
+                                    }
+                                )
+                            else:
+                                logger.warning(f"⚠️ Content too short from {url} ({len(content.strip()) if content else 0} chars), storing URL only")
+                                return Document(
+                                    page_content=url,
+                                    metadata={
+                                        "source": url,
+                                        "method": "webbaseloader",
+                                        "content_type": "url_only",
+                                        "extraction_failed": True,
+                                        "reason": "content_too_short"
+                                    }
+                                )
+                        else:
+                            # Fallback: store URL if content extraction failed
+                            logger.warning(f"⚠️ No content extracted from {url}, storing URL only")
+                            return Document(
+                                page_content=url,
+                                metadata={
+                                    "source": url,
+                                    "method": "webbaseloader",
+                                    "content_type": "url_only",
+                                    "extraction_failed": True
+                                }
+                            )
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to download {url}: {str(e)[:100]}")
+                        # Return URL as fallback
+                        return Document(
+                            page_content=url,
+                            metadata={
+                                "source": url,
+                                "method": "webbaseloader",
+                                "content_type": "url_only",
+                                "error": str(e)[:200]
+                            }
+                        )
+
+            # Download all URLs in parallel with controlled concurrency
+            tasks = [download_url_content(url) for url in sitemap_urls]
+            sitemap_docs = await asyncio.gather(*tasks)
+
+            # Log statistics
+            successful = sum(1 for doc in sitemap_docs if not doc.metadata.get("extraction_failed") and doc.metadata.get("content_type") == "extracted_content")
+            failed = len(sitemap_docs) - successful
+
+            logger.info(f"✅ Content loading complete:")
+            logger.info(f"   - {successful} URLs with content extracted")
+            logger.info(f"   - {failed} URLs failed (stored as URL only)")
+            logger.info(f"   - Total: {len(sitemap_docs)} documents created")
+
+            return sitemap_docs
+
+        except Exception as e:
+            logger.warning(f"⚠️ Crawl4AI + WebBaseLoader failed, trying Firecrawl: {e}")
+
+    # Try Firecrawl as secondary method if enabled
     if FirecrawlConfig.ENABLED:
         try:
             logger.info(f"🔥 Using Firecrawl for parallel document loading...")
@@ -339,8 +661,7 @@ async def load_sitemap_documents_parallel(website_url: str, max_concurrent: int 
 
     # Fallback to legacy parallel method
     logger.info("📋 Using legacy parallel XML sitemap parsing...")
-    import asyncio
-    import aiohttp
+    # Note: asyncio and aiohttp already imported at module level
     from xml.etree import ElementTree as ET
 
     async def _get_sitemap_urls_async_legacy(url: str, session: aiohttp.ClientSession):

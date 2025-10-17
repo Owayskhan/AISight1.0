@@ -17,7 +17,7 @@ faiss-cpu
 pinecone
 
 # Web scraping and crawling
-firecrawl-py
+crawl4ai
 
 # Utilities
 python-dotenv
@@ -28,3 +28,4 @@ html2text
 beautifulsoup4
 azure-messaging-webpubsubservice
 aiohttp
+playwright

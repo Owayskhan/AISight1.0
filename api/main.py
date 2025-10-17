@@ -87,8 +87,8 @@ class APIKeys(BaseModel):
 
 class CitationCountRequest(BaseModel):
     brand_name: str = Field(..., description="Name of the brand")
-    brand_url: str = Field(..., description="Brand website URL or specific product URL")
-    url_type: str = Field("website", description="Type of URL: 'website' or 'product'")
+    brand_url: str = Field(..., description="URL containing products from a category or a single product page")
+    url_type: str = Field("category", description="Type of URL: 'category' (products from a specific category) or 'product' (single product page). Note: 'website' is deprecated but still supported as a synonym for 'category'")
     sitemap_url: Optional[str] = Field(None, description="Sitemap URL (optional - will be auto-discovered if not provided)")
     product_category: str = Field(..., description="Product category for query generation")
     api_keys: APIKeys = Field(..., description="API keys for different services")
@@ -129,8 +129,16 @@ class CitationCountRequest(BaseModel):
     @field_validator('url_type')
     @classmethod
     def validate_url_type(cls, v):
-        if v not in ['website', 'product']:
-            raise ValueError("url_type must be either 'website' or 'product'")
+        # Support 'category', 'product', and 'website' (deprecated synonym for 'category')
+        valid_types = ['category', 'product', 'website']
+        if v not in valid_types:
+            raise ValueError(f"url_type must be 'category' or 'product' (Note: 'website' is deprecated but supported as synonym for 'category')")
+
+        # Normalize 'website' to 'category' for internal processing
+        if v == 'website':
+            logger.warning("⚠️ url_type='website' is deprecated. Please use 'category' instead. 'website' will be treated as 'category'.")
+            return 'category'
+
         return v
     
     @field_validator('user_intent')
@@ -190,8 +198,8 @@ class CitationCountRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "brand_name": "Example Brand",
-                "brand_url": "https://example.com",
-                "url_type": "website",
+                "brand_url": "https://example.com/category/electronics",
+                "url_type": "category",
                 "product_category": "Electronics",
                 "k": 30,
                 "api_keys": {
@@ -311,9 +319,15 @@ async def analyze_citation_count(request: CitationCountRequest):
                     if progress_sender:
                         progress_sender.send_progress(current, total, message)
                 
+                # IMPORTANT: Use environment OpenAI key for embeddings to ensure consistency
+                import os
+                env_openai_key = os.getenv("OPENAI_API_KEY")
+                if not env_openai_key:
+                    raise ValueError("OPENAI_API_KEY environment variable is required for product indexing")
+
                 vector_store = await create_vector_store_optimized(
-                    product_docs, 
-                    request.api_keys.openai_api_key,
+                    product_docs,
+                    env_openai_key,  # Use environment key for consistent embeddings
                     batch_size=request.indexing_batch_size,
                     progress_callback=indexing_progress_callback
                 )
@@ -330,9 +344,9 @@ async def analyze_citation_count(request: CitationCountRequest):
                 raise error
             
         else:
-            logger.info("🌐 Processing website URL...")
+            logger.info("📂 Processing category URL (page containing products from a specific category)...")
             step_start = time.time()
-            # Website flow with optimization: Check namespace first before sitemap fetching
+            # Category flow with optimization: Check namespace first before sitemap fetching
             
             # Step 1: Check if brand already has indexed data (optimization)
             logger.info("🔍 Checking if brand data is already indexed...")
@@ -393,10 +407,16 @@ async def analyze_citation_count(request: CitationCountRequest):
                 
                 # Use smart retriever that handles Pinecone vs FAISS automatically
                 # Note: sitemap_url will be "existing_namespace" if we're using cached data
+                # IMPORTANT: Use environment OpenAI key for embeddings to ensure consistency
+                import os
+                env_openai_key = os.getenv("OPENAI_API_KEY")
+                if not env_openai_key:
+                    raise ValueError("OPENAI_API_KEY environment variable is required for indexing and retrieval")
+
                 retriever = await get_smart_retriever(
                     brand_name=request.brand_name,
-                    sitemap_url=sitemap_url if sitemap_url != "existing_namespace" else None, 
-                    api_key=request.api_keys.openai_api_key,
+                    sitemap_url=sitemap_url if sitemap_url != "existing_namespace" else None,
+                    api_key=env_openai_key,  # Use environment key for consistent embeddings
                     k=4,
                     batch_size=request.indexing_batch_size,
                     use_pinecone=request.use_pinecone,
@@ -670,11 +690,31 @@ async def analyze_citation_count(request: CitationCountRequest):
             max_concurrent_downloads = min(base_concurrent, max(20, estimated_urls // 2))
             
             logger.info(f"🚀 Using up to {max_concurrent_downloads} concurrent connections for context retrieval (estimated ~{estimated_urls} URLs)")
+
+            # For non-preloaded content (category flow), pass the pinecone_manager
+            # so we can create fresh retrievers for each query
+            # IMPORTANT: Use environment OpenAI key for embeddings to ensure consistency
+            import os
+            if not content_preloaded:
+                from core.indexer.pinecone_indexer import get_pinecone_manager
+                pinecone_manager = get_pinecone_manager()
+                # Use environment key for consistent embeddings
+                env_openai_key = os.getenv("OPENAI_API_KEY")
+                if not env_openai_key:
+                    raise ValueError("OPENAI_API_KEY environment variable is required for retrieval")
+            else:
+                pinecone_manager = None
+                env_openai_key = None
+
             retrieved_queries = await retrieve_queries_context_concurrent(
-                queries_obj, 
-                retriever, 
+                queries_obj,
+                retriever,
                 content_preloaded=content_preloaded,
-                max_concurrent=max_concurrent_downloads
+                max_concurrent=max_concurrent_downloads,
+                pinecone_manager=pinecone_manager,
+                brand_name=request.brand_name if not content_preloaded else None,
+                openai_api_key=env_openai_key if not content_preloaded else None,  # Use environment key
+                k=4
             )
             logger.info(f"✅ Retrieved context for {len(retrieved_queries)} queries")
             
