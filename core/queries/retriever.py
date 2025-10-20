@@ -341,7 +341,7 @@ class RobustSessionManager:
         return success_count
 
 
-async def retrieve_queries_context_concurrent(queries: Queries, retriever, content_preloaded=False, max_concurrent=5, pinecone_manager=None, brand_name=None, openai_api_key=None, k=4):
+async def retrieve_queries_context_concurrent(queries: Queries, retriever, content_preloaded=False, max_concurrent=5, pinecone_manager=None, brand_name=None, openai_api_key=None, k=4, brand_url=None):
     """
     Ultra-robust version with comprehensive session management and progressive fallback strategies
 
@@ -354,6 +354,7 @@ async def retrieve_queries_context_concurrent(queries: Queries, retriever, conte
         brand_name: Brand name (required if pinecone_manager is provided)
         openai_api_key: OpenAI API key (required if pinecone_manager is provided)
         k: Number of documents to retrieve per query
+        brand_url: Optional brand URL to extract category path for namespace
 
     Returns:
         List of dicts containing query and context documents
@@ -384,7 +385,8 @@ async def retrieve_queries_context_concurrent(queries: Queries, retriever, conte
                     brand_name=brand_name,
                     openai_api_key=openai_api_key,
                     k=k,
-                    per_query_fresh=True  # Force fresh connection
+                    per_query_fresh=True,  # Force fresh connection
+                    brand_url=brand_url  # Pass brand_url for namespace identification
                 )
                 logger.debug(f"   ✅ Created fresh retriever for query {idx + 1}")
             except Exception as e:

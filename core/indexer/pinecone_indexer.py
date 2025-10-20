@@ -347,57 +347,61 @@ class PineconeIndexManager:
             )
         return self._embeddings
     
-    async def namespace_exists(self, brand_name: str) -> bool:
+    async def namespace_exists(self, brand_name: str, brand_url: Optional[str] = None) -> bool:
         """
         Check if a namespace exists for the given brand
-        
+
         Args:
             brand_name: Original brand name
-            
+            brand_url: Optional brand URL to extract category path for namespace
+
         Returns:
             True if namespace exists, False otherwise
         """
         try:
             if not self._index:
                 await self.initialize_index()
-            
-            namespace = sanitize_brand_name(brand_name)
-            
+
+            from core.utils.brand_sanitizer import sanitize_brand_with_category
+            namespace = sanitize_brand_with_category(brand_name, brand_url)
+
             # Query namespace to check if it has any vectors
             loop = asyncio.get_event_loop()
             stats = await loop.run_in_executor(
                 None, lambda: self._index.describe_index_stats()
             )
             namespaces = stats.get('namespaces', {})
-            
+
             # Check if namespace exists and has vectors
             return namespace in namespaces and namespaces[namespace]['vector_count'] > 0
-            
+
         except Exception as e:
             logger.error(f"Error checking namespace existence for {brand_name}: {str(e)}")
             return False
     
-    async def get_namespace_stats(self, brand_name: str) -> Dict[str, Any]:
+    async def get_namespace_stats(self, brand_name: str, brand_url: Optional[str] = None) -> Dict[str, Any]:
         """
         Get statistics for a brand's namespace
-        
+
         Args:
             brand_name: Original brand name
-            
+            brand_url: Optional brand URL to extract category path for namespace
+
         Returns:
             Dictionary with namespace statistics
         """
         try:
             if not self._index:
                 await self.initialize_index()
-            
-            namespace = sanitize_brand_name(brand_name)
+
+            from core.utils.brand_sanitizer import sanitize_brand_with_category
+            namespace = sanitize_brand_with_category(brand_name, brand_url)
             loop = asyncio.get_event_loop()
             stats = await loop.run_in_executor(
                 None, lambda: self._index.describe_index_stats()
             )
             namespaces = stats.get('namespaces', {})
-            
+
             if namespace in namespaces:
                 return {
                     'namespace': namespace,
@@ -410,10 +414,11 @@ class PineconeIndexManager:
                     'vector_count': 0,
                     'exists': False
                 }
-                
+
         except Exception as e:
+            from core.utils.brand_sanitizer import sanitize_brand_with_category
             logger.error(f"Error getting namespace stats for {brand_name}: {str(e)}")
-            return {'namespace': sanitize_brand_name(brand_name), 'vector_count': 0, 'exists': False, 'error': str(e)}
+            return {'namespace': sanitize_brand_with_category(brand_name, brand_url), 'vector_count': 0, 'exists': False, 'error': str(e)}
     
     async def create_vector_store(
         self,
@@ -421,30 +426,33 @@ class PineconeIndexManager:
         documents: List[Document],
         openai_api_key: str,
         batch_size: int = 100,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        brand_url: Optional[str] = None
     ) -> PineconeVectorStore:
         """
         Create or update a Pinecone vector store for a brand
-        
+
         Args:
             brand_name: Original brand name
             documents: List of documents to index
             openai_api_key: OpenAI API key for embeddings
             batch_size: Batch size for embedding operations
             progress_callback: Optional progress callback
-            
+            brand_url: Optional brand URL to extract category path for namespace
+
         Returns:
             PineconeVectorStore instance
         """
         if not documents:
             raise ValueError("No documents to index")
-        
+
         try:
             if not self._index:
                 await self.initialize_index()
-            
-            namespace = sanitize_brand_name(brand_name)
-            logger.info(f"Creating vector store for brand '{brand_name}' in namespace '{namespace}'")
+
+            from core.utils.brand_sanitizer import sanitize_brand_with_category
+            namespace = sanitize_brand_with_category(brand_name, brand_url)
+            logger.info(f"Creating vector store for brand '{brand_name}' with URL '{brand_url}' in namespace '{namespace}'")
             
             # Get embeddings instance
             embeddings = self.get_embeddings(openai_api_key)
@@ -538,7 +546,8 @@ class PineconeIndexManager:
         openai_api_key: str,
         k: int = 4,
         search_type: str = "similarity",
-        per_query_fresh: bool = False  # Changed default to False - use direct retriever
+        per_query_fresh: bool = False,  # Changed default to False - use direct retriever
+        brand_url: Optional[str] = None
     ):
         """
         Get a retriever for an existing brand namespace
@@ -549,6 +558,7 @@ class PineconeIndexManager:
             k: Number of documents to retrieve
             search_type: Type of search to perform
             per_query_fresh: DEPRECATED - kept for backward compatibility, always returns direct retriever
+            brand_url: Optional brand URL to extract category path for namespace
 
         Returns:
             Direct PineconeVectorStore retriever instance (no wrapper)
@@ -557,11 +567,12 @@ class PineconeIndexManager:
             if not self._index:
                 await self.initialize_index()
 
-            namespace = sanitize_brand_name(brand_name)
+            from core.utils.brand_sanitizer import sanitize_brand_with_category
+            namespace = sanitize_brand_with_category(brand_name, brand_url)
 
             # Verify namespace exists
-            if not await self.namespace_exists(brand_name):
-                raise ValueError(f"Namespace for brand '{brand_name}' does not exist")
+            if not await self.namespace_exists(brand_name, brand_url):
+                raise ValueError(f"Namespace for brand '{brand_name}' with URL '{brand_url}' does not exist")
 
             # Get FRESH embeddings instance to avoid session closure issues
             # CRITICAL: Use fresh=True to prevent reusing cached embeddings with closed HTTP sessions
@@ -612,29 +623,31 @@ class PineconeIndexManager:
                     raise retry_e
             raise
     
-    async def delete_namespace(self, brand_name: str) -> bool:
+    async def delete_namespace(self, brand_name: str, brand_url: Optional[str] = None) -> bool:
         """
         Delete all vectors in a brand's namespace
-        
+
         Args:
             brand_name: Original brand name
-            
+            brand_url: Optional brand URL to extract category path for namespace
+
         Returns:
             True if successful, False otherwise
         """
         try:
             if not self._index:
                 await self.initialize_index()
-            
-            namespace = sanitize_brand_name(brand_name)
-            
+
+            from core.utils.brand_sanitizer import sanitize_brand_with_category
+            namespace = sanitize_brand_with_category(brand_name, brand_url)
+
             # Delete all vectors in the namespace
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
                 None, lambda: self._index.delete(delete_all=True, namespace=namespace)
             )
-            
-            logger.info(f"Deleted namespace '{namespace}' for brand '{brand_name}'")
+
+            logger.info(f"Deleted namespace '{namespace}' for brand '{brand_name}' with URL '{brand_url}'")
             return True
             
         except Exception as e:
@@ -654,13 +667,13 @@ def get_pinecone_manager() -> PineconeIndexManager:
     return PineconeIndexManager()
 
 
-async def namespace_exists(brand_name: str) -> bool:
+async def namespace_exists(brand_name: str, brand_url: Optional[str] = None) -> bool:
     """Convenience function to check if namespace exists"""
     manager = get_pinecone_manager()
-    return await manager.namespace_exists(brand_name)
+    return await manager.namespace_exists(brand_name, brand_url)
 
 
-async def get_brand_namespace_stats(brand_name: str) -> Dict[str, Any]:
+async def get_brand_namespace_stats(brand_name: str, brand_url: Optional[str] = None) -> Dict[str, Any]:
     """Convenience function to get namespace statistics"""
     manager = get_pinecone_manager()
-    return await manager.get_namespace_stats(brand_name)
+    return await manager.get_namespace_stats(brand_name, brand_url)

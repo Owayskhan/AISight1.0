@@ -11,16 +11,16 @@ import traceback
 # Add parent directory to path to import core modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from core.website_crawler.crawler import find_sitemap_url, find_sitemap_url_async, load_single_product_document
-from core.indexer.indexer_optimized import  create_vector_store_optimized, get_smart_retriever
+from core.website_crawler.crawler import load_single_product_document
 from core.brand_profiler.main import research_brand_info
 from core.queries.generator import generate_queries, generate_product_queries
-from core.queries.retriever import retrieve_queries_context_concurrent
+from core.queries.context_builder import build_context_from_brand_and_category
 from core.queries.answer_generator import run_query_answering_chain
 from core.citation_counter.counter import analyze_query_visibility, calculate_brand_visibility_metrics
 from core.models.main import Queries
 from core.utils import get_progress_sender,  get_distribution_summary
 from langchain_openai import ChatOpenAI
+from langchain_community.document_loaders import WebBaseLoader
 
 # Import error handling utilities
 from core.utils.error_handling import (
@@ -275,166 +275,79 @@ async def analyze_citation_count(request: CitationCountRequest):
         if progress_sender:
             progress_sender.send_status("starting", f"Starting citation analysis for {request.brand_name}")
         
-        # Branch logic based on URL type
+        # Load product information if needed (for product URL type)
+        product_info = None
         if request.url_type == "product":
-            logger.info("🛍️ Processing single product URL...")
+            logger.info("🛍️ Loading single product page for information extraction...")
             step_start = time.time()
+
+            # Send progress update
+            if progress_sender:
+                progress_sender.send_status("loading_product_info", "Loading product information")
+
             try:
-                product_docs = await load_single_product_document(
-                    product_url=request.brand_url,
-                    openai_api_key=request.api_keys.openai_api_key,
-                    product_description=request.product_description,
-                    product_type=request.product_type
-                )
+                # Simple page load with WebBaseLoader - no indexing
+                loader = WebBaseLoader(request.brand_url)
+                product_docs = loader.load()
+
                 if not product_docs:
-                    logger.error("❌ Failed to load product page")
-                    raise HTTPException(status_code=400, detail="Could not load product page")
-                
-                logger.info(f"✅ Product page loaded and chunked into {len(product_docs)} documents")
-                
-                # Get extracted product info from the first document
-                if product_docs:
-                    extracted_info = product_docs[0].metadata
-                    product_desc = extracted_info.get("product_description", "N/A")
-                    product_type = extracted_info.get("product_type", "N/A")
-                    
-                    if request.product_description and request.product_type:
-                        logger.info("📝 Using provided product information:")
-                    else:
-                        logger.info("🧠 Extracted product information using LLM:")
-                    
-                    logger.info(f"   📋 Product Type: {product_type}")
-                    logger.info(f"   📄 Description: {product_desc[:100]}...")
-                
-
-                # Create vector store with the single product document
-                logger.info("🔍 Creating vector store for product...")
-                
-                # Send progress update for indexing
-                if progress_sender:
-                    progress_sender.send_status("indexing_brand_data", "Indexing brand data")
-                
-                # Create progress callback for indexing
-                def indexing_progress_callback(current, total, message):
-                    if progress_sender:
-                        progress_sender.send_progress(current, total, message)
-                
-                # IMPORTANT: Use environment OpenAI key for embeddings to ensure consistency
-                import os
-                env_openai_key = os.getenv("OPENAI_API_KEY")
-                if not env_openai_key:
-                    raise ValueError("OPENAI_API_KEY environment variable is required for product indexing")
-
-                vector_store = await create_vector_store_optimized(
-                    product_docs,
-                    env_openai_key,  # Use environment key for consistent embeddings
-                    batch_size=request.indexing_batch_size,
-                    progress_callback=indexing_progress_callback
-                )
-                retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 4})
-                content_preloaded = True
-                logger.info("✅ Vector store created for product")
-                step_timings["product_processing"] = time.time() - step_start
-                
-            except Exception as e:
-                error = handle_api_error(e, service="product_processing")
-                logger.error(f"❌ Product processing failed: {error.message}")
-                if progress_sender:
-                    progress_sender.send_error(error.message, "product_processing", status_code=error.status_code)
-                raise error
-            
-        else:
-            logger.info("📂 Processing category URL (page containing products from a specific category)...")
-            step_start = time.time()
-            # Category flow with optimization: Check namespace first before sitemap fetching
-            
-            # Step 1: Check if brand already has indexed data (optimization)
-            logger.info("🔍 Checking if brand data is already indexed...")
-            sitemap_url = None
-            
-            if request.use_pinecone and not request.force_reindex:
-                try:
-                    # Send progress update for checking existing index
-                    if progress_sender:
-                        progress_sender.send_status("checking_existing_index", "Checking existing brand index")
-                    
-                    from core.indexer.pinecone_indexer import get_brand_namespace_stats
-                    namespace_stats = await get_brand_namespace_stats(request.brand_name)
-                    logger.info(f"Namespace stats for '{request.brand_name}': {namespace_stats}")
-                    
-                    if namespace_stats['exists'] and namespace_stats['vector_count'] > 0:
-                        # Brand already indexed - skip sitemap fetching entirely!
-                        logger.info(f"✅ Found existing index for '{request.brand_name}' with {namespace_stats['vector_count']} vectors")
-                        logger.info("🚀 Skipping sitemap discovery - using cached vectors (major time savings!)")
-                        sitemap_url = "existing_namespace"  # Placeholder to indicate we're using existing data
-                    else:
-                        logger.info(f"📥 No existing index found for '{request.brand_name}' - will need sitemap")
-                        sitemap_url = None
-                        
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not check existing namespace: {str(e)}")
-                    logger.info("📝 Proceeding with sitemap discovery as fallback")
-                    sitemap_url = None
-            
-            # Step 2: Find sitemap URL only if we don't have existing data
-            if sitemap_url != "existing_namespace":
-                if request.sitemap_url:
-                    sitemap_url = request.sitemap_url
-                    logger.info(f"📋 Using provided sitemap URL: {sitemap_url}")
+                    logger.warning("⚠️ Could not load product page - will use provided info or skip")
                 else:
-                    logger.info("🔍 Auto-discovering sitemap URL...")
-                    try:
-                        sitemap_url = await find_sitemap_url_async(request.brand_url)
-                        logger.info(f"✅ Sitemap discovered: {sitemap_url}")
-                    except Exception as e:
-                        error = handle_api_error(e, service="web_scraping")
-                        logger.error(f"❌ Sitemap discovery failed: {error.message}")
-                        if progress_sender:
-                            progress_sender.send_error(error.message, "sitemap_discovery", status_code=error.status_code)
-                        raise error
-            
-            # Step 3: Smart indexing with Pinecone or FAISS fallback
-            logger.info("🔍 Setting up smart retriever...")
-            try:
-                # Send progress update for indexing
-                if progress_sender:
-                    progress_sender.send_status("indexing_brand_data", "Indexing brand data")
-                
-                # Create progress callback for indexing
-                def indexing_progress_callback(current, total, message):
-                    if progress_sender:
-                        progress_sender.send_progress(current, total, message)
-                
-                # Use smart retriever that handles Pinecone vs FAISS automatically
-                # Note: sitemap_url will be "existing_namespace" if we're using cached data
-                # IMPORTANT: Use environment OpenAI key for embeddings to ensure consistency
-                import os
-                env_openai_key = os.getenv("OPENAI_API_KEY")
-                if not env_openai_key:
-                    raise ValueError("OPENAI_API_KEY environment variable is required for indexing and retrieval")
+                    logger.info(f"✅ Product page loaded: {len(product_docs)} documents")
 
-                retriever = await get_smart_retriever(
-                    brand_name=request.brand_name,
-                    sitemap_url=sitemap_url if sitemap_url != "existing_namespace" else None,
-                    api_key=env_openai_key,  # Use environment key for consistent embeddings
-                    k=4,
-                    batch_size=request.indexing_batch_size,
-                    use_pinecone=request.use_pinecone,
-                    force_reindex=request.force_reindex,
-                    use_parallel_sitemap=True,  # Always use parallel sitemap loading
-                    progress_callback=indexing_progress_callback,
-                    skip_namespace_check=(sitemap_url == "existing_namespace")  # New parameter to avoid double-checking
-                )
-                content_preloaded = False  # URLs indexed, content loaded during retrieval
-                logger.info("✅ Smart retriever created successfully")
-                step_timings["website_indexing"] = time.time() - step_start
-                
+                    # Try to extract product info using LLM if not provided
+                    if not (request.product_description and request.product_type):
+                        try:
+                            # Use the existing extraction logic from load_single_product_document
+                            extracted_docs = await load_single_product_document(
+                                product_url=request.brand_url,
+                                openai_api_key=request.api_keys.openai_api_key,
+                                product_description=request.product_description,
+                                product_type=request.product_type
+                            )
+
+                            if extracted_docs and len(extracted_docs) > 0:
+                                extracted_info = extracted_docs[0].metadata
+                                product_desc = extracted_info.get("product_description", "")
+                                product_type = extracted_info.get("product_type", "")
+
+                                product_info = {
+                                    "product_description": product_desc or request.product_description or "",
+                                    "product_type": product_type or request.product_type or ""
+                                }
+
+                                logger.info("🧠 Extracted product information using LLM:")
+                                logger.info(f"   📋 Product Type: {product_info['product_type']}")
+                                logger.info(f"   📄 Description: {product_info['product_description'][:100]}...")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Could not extract product info: {str(e)}")
+                            product_info = {
+                                "product_description": request.product_description or "",
+                                "product_type": request.product_type or ""
+                            }
+                    else:
+                        # Use provided product info
+                        product_info = {
+                            "product_description": request.product_description,
+                            "product_type": request.product_type
+                        }
+                        logger.info("📝 Using provided product information:")
+                        logger.info(f"   📋 Product Type: {product_info['product_type']}")
+                        logger.info(f"   📄 Description: {product_info['product_description'][:100]}...")
+
+                step_timings["product_loading"] = time.time() - step_start
+
             except Exception as e:
-                error = handle_api_error(e, service="indexing")
-                logger.error(f"❌ Sitemap processing failed: {error.message}")
-                if progress_sender:
-                    progress_sender.send_error(error.message, "sitemap_processing", status_code=error.status_code)
-                raise error
+                error = handle_api_error(e, service="product_loading")
+                logger.warning(f"⚠️ Product loading failed: {error.message} - continuing without product details")
+                product_info = {
+                    "product_description": request.product_description or "",
+                    "product_type": request.product_type or ""
+                }
+        else:
+            logger.info("📂 Category URL type - will use brand profile and category research for context")
+            step_start = time.time()
+            step_timings["category_setup"] = time.time() - step_start
         
         # Step 2: Handle brand profile - either use provided info or generate it
         logger.info("👥 Processing brand profile...")
@@ -675,77 +588,56 @@ async def analyze_citation_count(request: CitationCountRequest):
             logger.error(f"❌ Query generation failed: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Query generation error: {str(e)}")
         
-        # Step 4: Retrieve context for queries
-        logger.info("🔍 Retrieving context for queries...")
+        # Step 4: Build context from brand profile and category research
+        logger.info("🔍 Building context from brand profile and category research...")
         step_start = time.time()
+
+        # Send progress update
+        if progress_sender:
+            progress_sender.send_status("researching_category", "Researching product category")
+
         try:
-            # Use concurrent context retrieval for better performance
-            from core.config import BatchConfig
-            
-            # Adaptive concurrency: use more connections for more queries/URLs
-            base_concurrent = BatchConfig.MAX_CONCURRENT_CONTEXT_DOWNLOADS
-            # Scale concurrency based on number of queries (4 URLs per query average)
-            estimated_urls = len(queries_obj.queries) * 4
-            # Use full concurrency for large workloads, scale down for smaller ones
-            max_concurrent_downloads = min(base_concurrent, max(20, estimated_urls // 2))
-            
-            logger.info(f"🚀 Using up to {max_concurrent_downloads} concurrent connections for context retrieval (estimated ~{estimated_urls} URLs)")
-
-            # For non-preloaded content (category flow), pass the pinecone_manager
-            # so we can create fresh retrievers for each query
-            # IMPORTANT: Use environment OpenAI key for embeddings to ensure consistency
             import os
-            if not content_preloaded:
-                from core.indexer.pinecone_indexer import get_pinecone_manager
-                pinecone_manager = get_pinecone_manager()
-                # Use environment key for consistent embeddings
-                env_openai_key = os.getenv("OPENAI_API_KEY")
-                if not env_openai_key:
-                    raise ValueError("OPENAI_API_KEY environment variable is required for retrieval")
-            else:
-                pinecone_manager = None
-                env_openai_key = None
+            from dotenv import load_dotenv
+            load_dotenv(override=True)
 
-            retrieved_queries = await retrieve_queries_context_concurrent(
-                queries_obj,
-                retriever,
-                content_preloaded=content_preloaded,
-                max_concurrent=max_concurrent_downloads,
-                pinecone_manager=pinecone_manager,
-                brand_name=request.brand_name if not content_preloaded else None,
-                openai_api_key=env_openai_key if not content_preloaded else None,  # Use environment key
-                k=4
+            # Get Tavily API key from environment
+            tavily_api_key = os.getenv("TAVILY_API_KEY", "")
+
+            # Build unified context for all queries
+            unified_context = await build_context_from_brand_and_category(
+                brand_name=request.brand_name,
+                brand_profile={
+                    'icp': audience_description,
+                    'summary': brand_summary,
+                    'products': request.brand_products or (brand_profile.products if brand_profile else []),
+                    'locales': locales if locales else []
+                },
+                product_category=request.product_category,
+                tavily_api_key=tavily_api_key,
+                product_info=product_info
             )
-            logger.info(f"✅ Retrieved context for {len(retrieved_queries)} queries")
-            
-            # Diagnostic: Check context quality
-            empty_contexts = 0
-            for item in retrieved_queries:
-                context = item.get("context", "")
-                # Handle case where context might be a list or other type
-                if isinstance(context, list):
-                    context_str = " ".join(str(c) for c in context) if context else ""
-                elif isinstance(context, str):
-                    context_str = context
-                else:
-                    context_str = str(context) if context else ""
-                
-                if not context_str.strip():
-                    empty_contexts += 1
-            
-            if empty_contexts > 0:
-                logger.warning(f"⚠️  {empty_contexts}/{len(retrieved_queries)} queries have empty context - this will impact citation analysis quality")
-                logger.info("🔍 Possible causes: website blocking, failed indexing, or content extraction issues")
-            else:
-                logger.info(f"✅ All {len(retrieved_queries)} queries have valid context")
-            
+
+            logger.info(f"✅ Context built: {len(unified_context)} characters")
+            logger.debug(f"Context preview: {unified_context[:500]}...")
+
+            # Create query items with shared context
+            retrieved_queries = []
+            for query in queries_obj.queries:
+                retrieved_queries.append({
+                    "query": query,
+                    "context": unified_context  # Same context for all queries
+                })
+
+            logger.info(f"✅ Prepared {len(retrieved_queries)} queries with unified context")
+
             context_duration = time.time() - step_start
-            step_timings["context_retrieval"] = context_duration
-            logger.info(f"⚡ Context retrieval optimization: {context_duration:.2f}s total (target <20s for major improvement)")
-            
+            step_timings["context_building"] = context_duration
+            logger.info(f"⚡ Context building completed in {context_duration:.2f}s")
+
         except Exception as e:
-            logger.error(f"❌ Context retrieval failed: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Context retrieval error: {str(e)}")
+            logger.error(f"❌ Context building failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Context building error: {str(e)}")
         
         # Step 5: Generate answers and analyze visibility
         logger.info("🤖 Starting LLM answer generation and citation analysis...")
@@ -827,19 +719,14 @@ async def analyze_citation_count(request: CitationCountRequest):
                         if rate_limit_waits:
                             await asyncio.gather(*rate_limit_waits)
                         
-                        # Debug: Check context quality - handle list or string context
-                        if isinstance(context, list):
-                            context_str = " ".join(str(c) for c in context) if context else ""
-                        elif isinstance(context, str):
-                            context_str = context
-                        else:
-                            context_str = str(context) if context else ""
-                        
+                        # Context is already a string from our context builder
+                        context_str = context if isinstance(context, str) else str(context)
+
                         context_preview = context_str[:200] if context_str else "No context"
                         logger.info(f"   📄 Context preview: {context_preview}...")
                         brand_in_context = request.brand_name.lower() in context_str.lower() if context_str else False
                         logger.info(f"   🔍 Brand '{request.brand_name}' in context: {brand_in_context}")
-                        
+
                         # Make the actual LLM calls
                         llm_responses = await run_query_answering_chain(
                             query=query.query,

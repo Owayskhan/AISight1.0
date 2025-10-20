@@ -376,7 +376,15 @@ async def load_sitemap_documents(website_url: str):
     """
     from core.config import Crawl4AIConfig, FirecrawlConfig
 
-    # Try Crawl4AI first if enabled
+    # IMPORTANT: Check if URL is an XML sitemap first (same logic as parallel version)
+    if website_url.endswith('.xml') or website_url.endswith('.xml.gz') or 'sitemap' in website_url.lower():
+        logger.info(f"🔍 Detected XML sitemap URL: {website_url}")
+        logger.info(f"📋 Using XML parser directly (skipping HTML parsers)...")
+
+        # Use the parallel version for XML parsing (it's more efficient)
+        return await load_sitemap_documents_parallel(website_url, max_concurrent=50)
+
+    # Try Crawl4AI first if enabled (for non-XML URLs)
     if Crawl4AIConfig.ENABLED:
         try:
             sitemap = await get_sitemap_urls_crawl4ai(website_url)
@@ -538,7 +546,11 @@ async def load_url_content_crawl4ai(url: str) -> str:
 async def load_sitemap_documents_parallel(website_url: str, max_concurrent: int = 50):
     """
     Load sitemap documents with parallel processing.
-    Uses Crawl4AI for URL discovery, then LangChain WebBaseLoader for content extraction.
+
+    Priority order:
+    1. Firecrawl crawl mode (if enabled and not XML) - RECOMMENDED
+    2. XML parser (if URL is sitemap.xml)
+    3. Crawl4AI + WebBaseLoader (fallback)
 
     Args:
         website_url: Base website URL or sitemap URL
@@ -549,7 +561,112 @@ async def load_sitemap_documents_parallel(website_url: str, max_concurrent: int 
     """
     from core.config import Crawl4AIConfig, FirecrawlConfig
 
-    # Try Crawl4AI first if enabled
+    # PRIORITY 1: Try Firecrawl scrape mode first (if not XML sitemap)
+    # Just load the specific page, don't crawl entire site
+    is_xml = website_url.endswith('.xml') or website_url.endswith('.xml.gz') or 'sitemap.xml' in website_url.lower()
+
+    if FirecrawlConfig.ENABLED and not is_xml:
+        try:
+            logger.info(f"🔥 Using Firecrawl scrape mode to load page (recommended)...")
+            from langchain_community.document_loaders.firecrawl import FireCrawlLoader
+            import os
+
+            api_key = os.getenv("FIRECRAWL_API_KEY")
+            if not api_key:
+                logger.warning("⚠️ FIRECRAWL_API_KEY not set, falling back to other methods")
+            else:
+                # Use scrape mode to just load this specific page
+                loader = FireCrawlLoader(
+                    api_key=api_key,
+                    url=website_url,
+                    mode="scrape"  # Just scrape this page, don't crawl
+                )
+
+                documents = loader.load()
+
+                if documents and len(documents) > 0:
+                    logger.info(f"✅ Firecrawl loaded page successfully: {len(documents)} document(s)")
+                    logger.info(f"   Title: {documents[0].metadata.get('title', 'N/A')}")
+                    logger.info(f"   Content length: {len(documents[0].page_content)} chars")
+                    return documents
+                else:
+                    logger.warning("⚠️ Firecrawl returned no documents, falling back to other methods")
+
+        except ImportError:
+            logger.warning("⚠️ firecrawl-py not installed, falling back to other methods")
+        except Exception as e:
+            logger.warning(f"⚠️ Firecrawl scrape failed: {str(e)}, falling back to other methods")
+
+    # PRIORITY 2: Check if URL is an XML sitemap
+    # IMPORTANT: Check if URL is an XML sitemap first
+    # If it's XML, skip Crawl4AI and use XML parser directly
+    if website_url.endswith('.xml') or website_url.endswith('.xml.gz') or 'sitemap' in website_url.lower():
+        logger.info(f"🔍 Detected XML sitemap URL: {website_url}")
+        logger.info(f"📋 Using XML parser directly (skipping HTML parsers)...")
+
+        # Jump straight to XML parsing (legacy parallel method)
+        from xml.etree import ElementTree as ET
+
+        async def _get_sitemap_urls_from_xml(url: str, session: aiohttp.ClientSession):
+            """Parse XML sitemap to extract URLs"""
+            try:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                    content = await response.read()
+
+                    # Parse the XML
+                    root = ET.fromstring(content)
+                    namespace = {'ns': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+                    urls = []
+                    seen_urls = set()
+
+                    # Check if it's a sitemap index (contains <sitemap> tags pointing to other sitemaps)
+                    sitemap_elements = root.findall('.//ns:sitemap/ns:loc', namespace)
+                    if sitemap_elements:
+                        logger.info(f"📑 Found sitemap index with {len(sitemap_elements)} sub-sitemaps")
+                        # It's a sitemap index - recursively fetch all sub-sitemaps
+                        for sitemap_loc in sitemap_elements:
+                            sub_sitemap_url = sitemap_loc.text.strip() if sitemap_loc.text else ""
+                            if sub_sitemap_url:
+                                logger.info(f"  📄 Fetching sub-sitemap: {sub_sitemap_url}")
+                                sub_urls = await _get_sitemap_urls_from_xml(sub_sitemap_url, session)
+                                urls.extend(sub_urls)
+                    else:
+                        # Regular sitemap - extract <loc> tags
+                        for url_element in root.findall('.//ns:loc', namespace):
+                            url_text = url_element.text.strip() if url_element.text else ""
+                            if url_text and url_text not in seen_urls:
+                                seen_urls.add(url_text)
+                                urls.append(url_text)
+
+                    logger.info(f"✅ Extracted {len(urls)} unique URLs from XML sitemap")
+                    return urls
+            except Exception as e:
+                logger.error(f"❌ Error parsing XML sitemap {url}: {str(e)}")
+                return []
+
+        # Create documents from XML sitemap
+        timeout = aiohttp.ClientTimeout(total=60)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            sitemap_urls = await _get_sitemap_urls_from_xml(website_url, session)
+
+            if not sitemap_urls:
+                logger.warning("⚠️ No URLs found in XML sitemap")
+                return []
+
+            # Create Document objects with URL-only content (content loaded during retrieval)
+            logger.info(f"📦 Creating {len(sitemap_urls)} document placeholders...")
+            documents = [
+                Document(
+                    page_content=url,
+                    metadata={"source": url, "content_type": "url_only"}
+                )
+                for url in sitemap_urls
+            ]
+
+            logger.info(f"✅ XML sitemap processing complete: {len(documents)} documents created")
+            return documents
+
+    # Try Crawl4AI first if enabled (for non-XML URLs)
     if Crawl4AIConfig.ENABLED:
         try:
             logger.info(f"🕷️ Using Crawl4AI for URL discovery...")

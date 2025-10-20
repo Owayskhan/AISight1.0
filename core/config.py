@@ -178,23 +178,23 @@ class ValidationConfig:
 
 # Firecrawl Configuration (Deprecated)
 class FirecrawlConfig:
-    """Firecrawl API configuration for website crawling (DEPRECATED - use Crawl4AI)"""
+    """Firecrawl API configuration for website crawling - PRIMARY METHOD"""
     DEFAULT_TIMEOUT = 30.0  # seconds
     MAX_RETRIES = 2
     MAP_TIMEOUT = 60.0  # seconds for map operation (can take longer)
 
     # Enable/disable Firecrawl (fallback to traditional sitemap discovery if disabled)
-    ENABLED = False  # Set to False to use Crawl4AI (default)
+    ENABLED = True  # Set to True to use Firecrawl (default - recommended)
 
 
 # Crawl4AI Configuration
 class Crawl4AIConfig:
-    """Crawl4AI configuration for website crawling"""
+    """Crawl4AI configuration for website crawling - FALLBACK METHOD"""
     DEFAULT_TIMEOUT = 30.0  # seconds
     MAX_RETRIES = 2
 
     # Enable/disable Crawl4AI
-    ENABLED = True  # Set to True to use Crawl4AI (default method)
+    ENABLED = False  # Set to False - Firecrawl is now primary (Crawl4AI is fallback)
 
 
 # Export all config classes for easy importing

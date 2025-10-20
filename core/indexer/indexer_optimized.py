@@ -104,11 +104,12 @@ async def get_smart_retriever(
     force_reindex: bool = False,
     use_parallel_sitemap: bool = True,
     progress_callback: Optional[callable] = None,
-    skip_namespace_check: bool = False
+    skip_namespace_check: bool = False,
+    brand_url: Optional[str] = None
 ):
     """
     Smart retriever that uses Pinecone for persistent storage of brand sitemaps
-    
+
     Args:
         brand_name: Brand name for namespace identification
         sitemap_url: URL of the sitemap (can be None if using existing namespace)
@@ -120,6 +121,7 @@ async def get_smart_retriever(
         use_parallel_sitemap: Use parallel sitemap loading
         progress_callback: Optional callback for progress updates
         skip_namespace_check: Skip namespace existence check (optimization when already checked)
+        brand_url: Optional brand URL to extract category path for namespace
     """
     if not use_pinecone:
         raise ValueError("Pinecone is required for this system. Please set use_pinecone=True or configure Pinecone API key.")
@@ -134,47 +136,49 @@ async def get_smart_retriever(
                     message="Checking existing brand index..."
                 )
             
-            namespace_stats = await get_brand_namespace_stats(brand_name)
-            logger.info(f"Namespace stats for '{brand_name}': {namespace_stats}")
-            
+            namespace_stats = await get_brand_namespace_stats(brand_name, brand_url)
+            logger.info(f"Namespace stats for '{brand_name}' with URL '{brand_url}': {namespace_stats}")
+
             if namespace_stats['exists'] and namespace_stats['vector_count'] > 0 and not force_reindex:
                 # Use existing Pinecone namespace
-                logger.info(f"✅ Found existing index for '{brand_name}' with {namespace_stats['vector_count']} vectors")
+                logger.info(f"✅ Found existing index for '{brand_name}' with URL '{brand_url}' with {namespace_stats['vector_count']} vectors")
                 logger.info("🚀 Skipping indexing - using cached vectors (major time savings!)")
-                
+
                 if progress_callback:
                     progress_callback(
                         current=100,
                         total=100,
                         message="Using existing brand index"
                     )
-                
+
                 # Get retriever from existing namespace
                 pinecone_manager = get_pinecone_manager()
                 return await pinecone_manager.get_retriever(
                     brand_name=brand_name,
                     openai_api_key=api_key,
-                    k=k
+                    k=k,
+                    brand_url=brand_url
                 )
         else:
             # Skip namespace check was requested - check if we should use existing or need sitemap
             if sitemap_url is None:
                 # No sitemap provided and skip_namespace_check=True means use existing namespace
-                logger.info(f"🚀 Using existing namespace for '{brand_name}' (optimized path)")
-                
+                logger.info(f"🚀 Using existing namespace for '{brand_name}' with URL '{brand_url}' (optimized path)")
+
                 if progress_callback:
                     progress_callback(
                         current=100,
                         total=100,
                         message="Using existing brand index"
                     )
-                
+
                 # Get retriever from existing namespace
                 pinecone_manager = get_pinecone_manager()
                 return await pinecone_manager.get_retriever(
                     brand_name=brand_name,
                     openai_api_key=api_key,
-                    k=k
+                    k=k,
+                    brand_url=brand_url
                 )
         
         # If we reach here, we need to index documents
@@ -223,7 +227,8 @@ async def get_smart_retriever(
             documents=sitemap_docs,
             openai_api_key=api_key,
             batch_size=batch_size,
-            progress_callback=pinecone_progress_callback
+            progress_callback=pinecone_progress_callback,
+            brand_url=brand_url
         )
         
         if progress_callback:
