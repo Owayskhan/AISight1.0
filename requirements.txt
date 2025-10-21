@@ -1,31 +1,34 @@
 # Core FastAPI dependencies
-fastapi
-uvicorn[standard]
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+pydantic-core>=2.14.0
+typing-extensions>=4.8.0
 
 # AI/ML dependencies
-langchain
-langchain-openai
-langchain-google-genai
-langchain-community
-langchain-perplexity
-langchain_tavily
-langchain-text-splitters
-langchain-pinecone
-openai
-google-generativeai
-faiss-cpu
-pinecone
-
-# Web scraping and crawling
-crawl4ai
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-google-genai>=0.0.6
+langchain-community>=0.0.20
+langchain-perplexity>=0.1.0
+langchain_tavily>=0.1.0
+langchain-text-splitters>=0.0.1
+openai>=1.0.0
+google-generativeai>=0.3.0
 
 # Utilities
-python-dotenv
-requests
-lxml
-tavily-python
-html2text
-beautifulsoup4
-azure-messaging-webpubsubservice
-aiohttp
-playwright
+python-dotenv>=1.0.0
+requests>=2.31.0
+lxml>=4.9.0
+tavily-python>=0.3.0
+html2text>=2020.1.16
+beautifulsoup4>=4.12.0
+azure-messaging-webpubsubservice>=1.0.0
+aiohttp>=3.9.0
+
+# Note: The following packages were removed as they're no longer needed:
+# - langchain-pinecone (no vector indexing)
+# - faiss-cpu (no vector indexing)
+# - pinecone (no vector indexing)
+# - crawl4ai (no website crawling)
+# - playwright (crawl4ai dependency)
