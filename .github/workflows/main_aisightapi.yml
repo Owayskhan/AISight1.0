@@ -39,15 +39,10 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt
 
-      - name: Install Playwright browsers (if needed)
+      - name: Fix typing_extensions for Azure compatibility
         run: |
           source venv/bin/activate
-          if pip list | grep -q playwright; then
-            echo "Playwright detected, installing browsers..."
-            playwright install --with-deps chromium
-          else
-            echo "Playwright not in requirements.txt, skipping browser installation"
-          fi
+          pip install --force-reinstall --no-cache-dir typing-extensions>=4.8.0 pydantic-core>=2.14.0
 
       - name: Verify critical packages
         run: |
