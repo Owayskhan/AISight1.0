@@ -26,9 +26,4 @@ beautifulsoup4>=4.12.0
 azure-messaging-webpubsubservice>=1.0.0
 aiohttp>=3.9.0
 
-# Note: The following packages were removed as they're no longer needed:
-# - langchain-pinecone (no vector indexing)
-# - faiss-cpu (no vector indexing)
-# - pinecone (no vector indexing)
-# - crawl4ai (no website crawling)
-# - playwright (crawl4ai dependency)
+
